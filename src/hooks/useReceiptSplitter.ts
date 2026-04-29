@@ -6,6 +6,8 @@ import {
   createEmptyState,
   createItem,
   formatMoney,
+  normalizeCurrencyInput,
+  normalizeQuantityInput,
   parseMoneyInput,
   parseQuantity,
   parseReceiptText,
@@ -32,7 +34,7 @@ export function useReceiptSplitter() {
     }
 
     lastSerializedRef.current = serialized
-    const nextUrl = `${window.location.pathname}${window.location.search}#${serialized}`
+    const nextUrl = serialized ? `${window.location.pathname}#${serialized}` : window.location.pathname
     window.history.replaceState(null, '', nextUrl)
   }, [receiptState])
 
@@ -78,6 +80,7 @@ export function useReceiptSplitter() {
   const taxAmount = parseMoneyInput(receiptState.tax)
   const tipAmount = parseMoneyInput(receiptState.tip)
   const feesAmount = parseMoneyInput(receiptState.fees)
+  const discountAmount = parseMoneyInput(receiptState.discount)
   const summaryRows = participants.map((participant) => {
     const assignedItems = items.filter((item) => item.assignees.includes(participant))
     const itemsTotal = assignedItems.reduce((sum, item) => sum + item.perPerson, 0)
@@ -85,7 +88,8 @@ export function useReceiptSplitter() {
     const taxShare = taxAmount * shareRatio
     const tipShare = tipAmount * shareRatio
     const feesShare = feesAmount * shareRatio
-    const grandTotal = itemsTotal + taxShare + tipShare + feesShare
+    const discountShare = discountAmount * shareRatio
+    const grandTotal = itemsTotal + taxShare + tipShare + feesShare - discountShare
 
     return {
       participant,
@@ -94,13 +98,14 @@ export function useReceiptSplitter() {
       taxShare,
       tipShare,
       feesShare,
+      discountShare,
       grandTotal,
     }
   })
   const unassignedTotal = items
     .filter((item) => item.total > 0 && item.assignees.length === 0)
     .reduce((sum, item) => sum + item.total, 0)
-  const receiptTotal = subtotal + taxAmount + tipAmount + feesAmount
+  const receiptTotal = subtotal + taxAmount + tipAmount + feesAmount - discountAmount
   const remainingTotal = Math.max(
     receiptTotal - summaryRows.reduce((sum, row) => sum + row.grandTotal, 0),
     0,
@@ -151,6 +156,17 @@ export function useReceiptSplitter() {
   }
 
   function updateItem(itemId: string, field: keyof ReceiptItem, value: string | string[]) {
+    let nextValue = value
+    if (typeof value === 'string') {
+      if (field === 'price') {
+        nextValue = normalizeCurrencyInput(value)
+      }
+
+      if (field === 'quantity') {
+        nextValue = normalizeQuantityInput(value)
+      }
+    }
+
     updateState((current) => ({
       ...current,
       items: current.items.map((item) => {
@@ -160,7 +176,7 @@ export function useReceiptSplitter() {
 
         return {
           ...item,
-          [field]: value,
+          [field]: nextValue,
         }
       }),
     }))
@@ -275,6 +291,7 @@ export function useReceiptSplitter() {
       ...(taxAmount > 0 ? [`Tax: ${formatMoney(taxAmount)}`] : []),
       ...(tipAmount > 0 ? [`Tip: ${formatMoney(tipAmount)}`] : []),
       ...(feesAmount > 0 ? [`Fees: ${formatMoney(feesAmount)}`] : []),
+      ...(discountAmount > 0 ? [`Discount: -${formatMoney(discountAmount)}`] : []),
       `Total: ${formatMoney(receiptTotal)}`,
     ]
 
@@ -298,6 +315,7 @@ export function useReceiptSplitter() {
           ...(row.taxShare > 0 ? [`  - Tax: ${formatMoney(row.taxShare)}`] : []),
           ...(row.tipShare > 0 ? [`  - Tip: ${formatMoney(row.tipShare)}`] : []),
           ...(row.feesShare > 0 ? [`  - Fees: ${formatMoney(row.feesShare)}`] : []),
+          ...(row.discountShare > 0 ? [`  - Discount: -${formatMoney(row.discountShare)}`] : []),
           '',
         ]
       }),
@@ -325,7 +343,7 @@ export function useReceiptSplitter() {
   function updateCharge(field: 'tax' | 'tip' | 'fees' | 'discount', value: string) {
     updateState((current) => ({
       ...current,
-      [field]: value,
+      [field]: normalizeCurrencyInput(value),
     }))
   }
 
@@ -345,6 +363,7 @@ export function useReceiptSplitter() {
     taxAmount,
     tipAmount,
     feesAmount,
+    discountAmount,
     receiptTotal,
     remainingTotal,
     unassignedTotal,

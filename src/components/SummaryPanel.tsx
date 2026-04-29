@@ -6,6 +6,7 @@ type SummaryPanelProps = {
   taxAmount: number
   tipAmount: number
   feesAmount: number
+  discountAmount: number
   receiptTotal: number
   summaryRows: SummaryRow[]
 }
@@ -15,6 +16,7 @@ export default function SummaryPanel({
   taxAmount,
   tipAmount,
   feesAmount,
+  discountAmount,
   receiptTotal,
   summaryRows,
 }: SummaryPanelProps) {
@@ -23,6 +25,7 @@ export default function SummaryPanel({
     ...(taxAmount > 0 ? [{ label: 'Tax', value: taxAmount }] : []),
     ...(tipAmount > 0 ? [{ label: 'Tip', value: tipAmount }] : []),
     ...(feesAmount > 0 ? [{ label: 'Fees', value: feesAmount }] : []),
+    ...(discountAmount > 0 ? [{ label: 'Discount', value: -discountAmount }] : []),
     { label: 'Total', value: receiptTotal, emphasize: true },
   ]
 
@@ -80,6 +83,12 @@ export default function SummaryPanel({
                   <div className="flex items-center justify-between gap-3">
                     <span>Fees</span>
                     <span>{formatMoney(row.feesShare)}</span>
+                  </div>
+                ) : null}
+                {row.discountShare > 0 ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Discount</span>
+                    <span>-{formatMoney(row.discountShare)}</span>
                   </div>
                 ) : null}
               </div>

@@ -21,6 +21,7 @@ export default function SplitterScreen({ splitter }: SplitterScreenProps) {
     taxAmount,
     tipAmount,
     feesAmount,
+    discountAmount,
     receiptTotal,
     remainingTotal,
     unassignedTotal,
@@ -94,6 +95,7 @@ export default function SplitterScreen({ splitter }: SplitterScreenProps) {
           taxAmount={taxAmount}
           tipAmount={tipAmount}
           feesAmount={feesAmount}
+          discountAmount={discountAmount}
           receiptTotal={receiptTotal}
           summaryRows={summaryRows}
         />

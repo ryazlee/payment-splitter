@@ -34,8 +34,35 @@ export function parseMoneyInput(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+export function normalizeCurrencyInput(value: string): string {
+  const digitsAndDots = value.replace(/[^\d.]/g, '')
+  if (!digitsAndDots) {
+    return ''
+  }
+
+  const [wholePart = '', ...decimalParts] = digitsAndDots.split('.')
+  const decimals = decimalParts.join('').slice(0, 2)
+  const normalizedWhole = wholePart.replace(/^0+(?=\d)/, '')
+  const safeWhole = normalizedWhole || (digitsAndDots.startsWith('.') ? '0' : '')
+
+  if (digitsAndDots.includes('.')) {
+    return `${safeWhole || '0'}.${decimals}`
+  }
+
+  return safeWhole
+}
+
+export function normalizeQuantityInput(value: string): string {
+  const digitsOnly = value.replace(/\D/g, '')
+  if (!digitsOnly) {
+    return ''
+  }
+
+  return digitsOnly.replace(/^0+(?=\d)/, '')
+}
+
 export function parseQuantity(value: string): number {
-  const parsed = Number(value)
+  const parsed = Number.parseInt(value, 10)
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return 1
   }

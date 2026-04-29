@@ -13,38 +13,36 @@ export default function ChargesPanel({
   discount,
   onChargeChange,
 }: ChargesPanelProps) {
+  function renderCurrencyInput(
+    field: 'tax' | 'tip' | 'fees' | 'discount',
+    value: string,
+    placeholder: string,
+  ) {
+    return (
+      <label className="relative min-w-[calc(50%-0.25rem)] flex-1">
+        <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-gray-500">
+          $
+        </span>
+        <input
+          value={value}
+          onChange={(event) => onChargeChange(field, event.target.value)}
+          inputMode="decimal"
+          pattern="^\d*(?:\.\d{0,2})?$"
+          className="w-full rounded bg-gray-700 py-2 pr-3 pl-7 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
+          placeholder={placeholder}
+        />
+      </label>
+    )
+  }
+
   return (
     <section className="space-y-3 rounded bg-gray-800 p-4">
       <h2 className="text-sm text-gray-300">Charges</h2>
       <div className="flex flex-wrap gap-2">
-        <input
-          value={tax}
-          onChange={(event) => onChargeChange('tax', event.target.value)}
-          inputMode="decimal"
-          className="min-w-[calc(50%-0.25rem)] flex-1 rounded bg-gray-700 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
-          placeholder="Tax"
-        />
-        <input
-          value={tip}
-          onChange={(event) => onChargeChange('tip', event.target.value)}
-          inputMode="decimal"
-          className="min-w-[calc(50%-0.25rem)] flex-1 rounded bg-gray-700 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
-          placeholder="Tip"
-        />
-        <input
-          value={fees}
-          onChange={(event) => onChargeChange('fees', event.target.value)}
-          inputMode="decimal"
-          className="min-w-[calc(50%-0.25rem)] flex-1 rounded bg-gray-700 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
-          placeholder="Fees"
-        />
-        <input
-          value={discount}
-          onChange={(event) => onChargeChange('discount', event.target.value)}
-          inputMode="decimal"
-          className="min-w-[calc(50%-0.25rem)] flex-1 rounded bg-gray-700 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
-          placeholder="Discount"
-        />
+        {renderCurrencyInput('tax', tax, 'Tax')}
+        {renderCurrencyInput('tip', tip, 'Tip')}
+        {renderCurrencyInput('fees', fees, 'Fees')}
+        {renderCurrencyInput('discount', discount, 'Discount')}
       </div>
     </section>
   )

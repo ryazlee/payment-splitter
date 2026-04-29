@@ -29,17 +29,24 @@ export default function ReceiptItemCard({
         placeholder={`Item ${index + 1}`}
       />
       <div className="flex flex-wrap gap-2 sm:flex-nowrap">
-        <input
-          value={item.price}
-          onChange={(event) => onUpdateItem(item.id, 'price', event.target.value)}
-          inputMode="decimal"
-          className="min-w-0 flex-1 rounded bg-gray-600 px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white"
-          placeholder="Price"
-        />
+        <label className="relative min-w-0 flex-1">
+          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-gray-400">
+            $
+          </span>
+          <input
+            value={item.price}
+            onChange={(event) => onUpdateItem(item.id, 'price', event.target.value)}
+            inputMode="decimal"
+            pattern="^\d*(?:\.\d{0,2})?$"
+            className="w-full rounded bg-gray-600 py-2 pr-3 pl-7 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white"
+            placeholder="0.00"
+          />
+        </label>
         <input
           value={item.quantity}
           onChange={(event) => onUpdateItem(item.id, 'quantity', event.target.value)}
-          inputMode="decimal"
+          inputMode="numeric"
+          pattern="^\d*$"
           className="w-[88px] shrink-0 rounded bg-gray-600 px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white"
           placeholder="Qty"
         />

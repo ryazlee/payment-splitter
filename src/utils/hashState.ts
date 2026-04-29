@@ -125,5 +125,5 @@ export function createShareUrl(state: ReceiptState): string {
   const serialized = encodeHashState(state)
   const { origin, pathname } = window.location
 
-  return `${origin}${pathname}?${serialized}#${serialized}`
+  return serialized ? `${origin}${pathname}#${serialized}` : `${origin}${pathname}`
 }
