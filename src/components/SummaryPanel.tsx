@@ -18,43 +18,39 @@ export default function SummaryPanel({
   receiptTotal,
   summaryRows,
 }: SummaryPanelProps) {
+  const summaryStats = [
+    { label: 'Subtotal', value: subtotal },
+    ...(taxAmount > 0 ? [{ label: 'Tax', value: taxAmount }] : []),
+    ...(tipAmount > 0 ? [{ label: 'Tip', value: tipAmount }] : []),
+    ...(feesAmount > 0 ? [{ label: 'Fees', value: feesAmount }] : []),
+    { label: 'Total', value: receiptTotal, emphasize: true },
+  ]
+
   return (
-    <section className="space-y-2 rounded bg-gray-800 p-4">
-      <div className="flex items-center justify-between text-sm text-gray-400">
-        <span>Subtotal</span>
-        <span>{formatMoney(subtotal)}</span>
+    <section className="space-y-3 rounded bg-gray-800 p-4">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+        {summaryStats.map((stat) => (
+          <div key={stat.label} className="flex items-center justify-between gap-3">
+            <span className={stat.emphasize ? 'text-white' : 'text-gray-400'}>{stat.label}</span>
+            <span className={stat.emphasize ? 'text-white' : 'text-gray-300'}>{formatMoney(stat.value)}</span>
+          </div>
+        ))}
       </div>
-      {taxAmount > 0 ? (
-        <div className="flex items-center justify-between text-sm text-gray-400">
-          <span>Tax</span>
-          <span>{formatMoney(taxAmount)}</span>
-        </div>
-      ) : null}
-      {tipAmount > 0 ? (
-        <div className="flex items-center justify-between text-sm text-gray-400">
-          <span>Tip</span>
-          <span>{formatMoney(tipAmount)}</span>
-        </div>
-      ) : null}
-      {feesAmount > 0 ? (
-        <div className="flex items-center justify-between text-sm text-gray-400">
-          <span>Other fees</span>
-          <span>{formatMoney(feesAmount)}</span>
-        </div>
-      ) : null}
-      <div className="flex items-center justify-between pt-1 text-sm text-white">
-        <span>Total</span>
-        <span>{formatMoney(receiptTotal)}</span>
-      </div>
-      <div className="space-y-2 pt-2">
+
+      <div className="space-y-1.5">
         {summaryRows.length > 0 ? (
           summaryRows.map((row) => (
-            <article key={row.participant} className="rounded bg-gray-700 p-3">
+            <article key={row.participant} className="rounded bg-gray-700 px-3 py-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-white">{row.participant}</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm text-white">{row.participant}</span>
+                  <span className="text-xs text-gray-400">
+                    {receiptTotal > 0 ? `${Math.round((row.grandTotal / receiptTotal) * 100)}%` : '0%'}
+                  </span>
+                </div>
                 <span className="text-sm font-medium text-white">{formatMoney(row.grandTotal)}</span>
               </div>
-              <div className="mt-2 space-y-1 text-xs text-gray-400">
+              <div className="mt-1.5 space-y-0.5 text-xs text-gray-400">
                 {row.assignedItems.length > 0 ? (
                   row.assignedItems.map((item) => (
                     <div key={`${row.participant}-${item.id}`} className="flex items-center justify-between gap-3">

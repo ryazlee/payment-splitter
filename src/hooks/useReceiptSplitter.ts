@@ -268,14 +268,18 @@ export function useReceiptSplitter() {
   }
 
   async function copySummary() {
+    const summaryStats = [
+      `Subtotal: ${formatMoney(subtotal)}`,
+      ...(taxAmount > 0 ? [`Tax: ${formatMoney(taxAmount)}`] : []),
+      ...(tipAmount > 0 ? [`Tip: ${formatMoney(tipAmount)}`] : []),
+      ...(feesAmount > 0 ? [`Fees: ${formatMoney(feesAmount)}`] : []),
+      `Total: ${formatMoney(receiptTotal)}`,
+    ]
+
     const lines = [
       receiptState.title || 'Shared receipt',
       '',
-      `Receipt total: ${formatMoney(receiptTotal)}`,
-      `Items subtotal: ${formatMoney(subtotal)}`,
-      ...(taxAmount > 0 ? [`Tax: ${formatMoney(taxAmount)}`] : []),
-      ...(tipAmount > 0 ? [`Tip: ${formatMoney(tipAmount)}`] : []),
-      ...(feesAmount > 0 ? [`Other fees: ${formatMoney(feesAmount)}`] : []),
+      ...summaryStats,
       '',
       ...summaryRows.flatMap((row) => {
         const itemLines = row.assignedItems.length
@@ -284,16 +288,16 @@ export function useReceiptSplitter() {
             )
           : ['  - No assigned items']
 
+        const percentage = receiptTotal > 0 ? Math.round((row.grandTotal / receiptTotal) * 100) : 0
+
         return [
-          `${row.participant}: ${formatMoney(row.grandTotal)}`,
-          `  - Items: ${formatMoney(row.itemsTotal)}`,
+          `${row.participant} (${percentage}%): ${formatMoney(row.grandTotal)}`,
+          ...itemLines,
           ...(row.taxShare > 0 ? [`  - Tax: ${formatMoney(row.taxShare)}`] : []),
           ...(row.tipShare > 0 ? [`  - Tip: ${formatMoney(row.tipShare)}`] : []),
-          `  - Total: ${formatMoney(row.grandTotal)}`,
-          ...itemLines,
+          '',
         ]
       }),
-      '',
       `Share link: ${window.location.href}`,
     ]
 
