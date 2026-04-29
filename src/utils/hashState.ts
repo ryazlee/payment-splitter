@@ -1,35 +1,78 @@
 import type { ReceiptItem, ReceiptState } from '../types'
 import { createItem, normalizeState } from './receipt'
 
-const ITEM_SEPARATOR = '~'
-const ASSIGNEE_SEPARATOR = '|'
+const LEGACY_ITEM_SEPARATOR = '~'
+const LEGACY_ASSIGNEE_SEPARATOR = '|'
 
-function encodeItem(item: ReceiptItem): string {
-  return [item.name, item.price, item.quantity, item.assignees.join(ASSIGNEE_SEPARATOR)].join(
-    ITEM_SEPARATOR,
-  )
+function encodeIndexedItem(params: URLSearchParams, item: ReceiptItem, index: number) {
+  const itemKey = `i${index}`
+
+  if (item.name) {
+    params.set(`${itemKey}n`, item.name)
+  }
+  if (item.price) {
+    params.set(`${itemKey}p`, item.price)
+  }
+  if (item.quantity && item.quantity !== '1') {
+    params.set(`${itemKey}q`, item.quantity)
+  }
+  for (const assignee of item.assignees.filter(Boolean)) {
+    params.append(`${itemKey}a`, assignee)
+  }
 }
 
-function decodeItem(value: string): ReceiptItem {
-  const [name = '', price = '', quantity = '1', assignees = ''] = value.split(ITEM_SEPARATOR)
+function decodeLegacyItem(value: string): ReceiptItem {
+  const [name = '', price = '', quantity = '1', assignees = ''] = value.split(LEGACY_ITEM_SEPARATOR)
   return createItem({
     name,
     price,
     quantity,
-    assignees: assignees ? assignees.split(ASSIGNEE_SEPARATOR).filter(Boolean) : [],
+    assignees: assignees ? assignees.split(LEGACY_ASSIGNEE_SEPARATOR).filter(Boolean) : [],
+  })
+}
+
+function readStateParams(): URLSearchParams {
+  const hashParams = new URLSearchParams(window.location.hash.slice(1))
+  if ([...hashParams.keys()].length > 0) {
+    return hashParams
+  }
+
+  return new URLSearchParams(window.location.search)
+}
+
+function decodeIndexedItems(params: URLSearchParams): ReceiptItem[] {
+  const indexes = Array.from(
+    new Set(
+      [...params.keys()]
+        .map((key) => key.match(/^i(\d+)[npqa]$/)?.[1])
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ).sort((left, right) => Number(left) - Number(right))
+
+  return indexes.map((index) => {
+    const prefix = `i${index}`
+    return createItem({
+      name: params.get(`${prefix}n`) ?? '',
+      price: params.get(`${prefix}p`) ?? '',
+      quantity: params.get(`${prefix}q`) ?? '1',
+      assignees: params.getAll(`${prefix}a`).filter(Boolean),
+    })
   })
 }
 
 export function readHashState(): ReceiptState | null {
-  const params = new URLSearchParams(window.location.hash.slice(1))
+  const params = readStateParams()
   if ([...params.keys()].length === 0) {
     return null
   }
 
+  const indexedItems = decodeIndexedItems(params)
+  const legacyItems = params.getAll('item').map(decodeLegacyItem)
+
   const state = normalizeState({
     title: params.get('title') ?? 'Shared receipt',
     participants: params.getAll('person'),
-    items: params.getAll('item').map(decodeItem),
+    items: indexedItems.length > 0 ? indexedItems : legacyItems,
     tax: params.get('tax') ?? '',
     tip: params.get('tip') ?? '',
     fees: params.get('fees') ?? '',
@@ -56,9 +99,9 @@ export function encodeHashState(state: ReceiptState): string {
     params.append('person', participant)
   }
 
-  for (const item of state.items) {
+  for (const [index, item] of state.items.entries()) {
     if (item.name || item.price || item.assignees.length > 0 || item.quantity !== '1') {
-      params.append('item', encodeItem(item))
+      encodeIndexedItem(params, item, index)
     }
   }
 
@@ -76,4 +119,11 @@ export function encodeHashState(state: ReceiptState): string {
   }
 
   return params.toString()
+}
+
+export function createShareUrl(state: ReceiptState): string {
+  const serialized = encodeHashState(state)
+  const { origin, pathname } = window.location
+
+  return `${origin}${pathname}?${serialized}#${serialized}`
 }

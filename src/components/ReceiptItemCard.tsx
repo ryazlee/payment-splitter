@@ -28,25 +28,25 @@ export default function ReceiptItemCard({
         className="w-full rounded bg-gray-600 px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white"
         placeholder={`Item ${index + 1}`}
       />
-      <div className="grid grid-cols-[1fr_80px_88px] gap-2">
+      <div className="flex flex-wrap gap-2 sm:flex-nowrap">
         <input
           value={item.price}
           onChange={(event) => onUpdateItem(item.id, 'price', event.target.value)}
           inputMode="decimal"
-          className="rounded bg-gray-600 px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white"
+          className="min-w-0 flex-1 rounded bg-gray-600 px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white"
           placeholder="Price"
         />
         <input
           value={item.quantity}
           onChange={(event) => onUpdateItem(item.id, 'quantity', event.target.value)}
           inputMode="decimal"
-          className="rounded bg-gray-600 px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white"
+          className="w-[88px] shrink-0 rounded bg-gray-600 px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white"
           placeholder="Qty"
         />
         <button
           type="button"
           onClick={() => onRemoveItem(item.id)}
-          className="rounded bg-gray-800 px-3 py-2 text-sm text-white hover:bg-gray-900"
+          className="w-full rounded bg-gray-800 px-3 py-2 text-sm text-white hover:bg-gray-900 sm:w-auto sm:shrink-0"
         >
           Remove
         </button>

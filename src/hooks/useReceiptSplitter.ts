@@ -1,7 +1,7 @@
 import { startTransition, useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { createWorker, OEM, PSM } from 'tesseract.js'
 import type { ReceiptItem, ReceiptState } from '../types'
-import { encodeHashState, readHashState } from '../utils/hashState'
+import { createShareUrl, encodeHashState, readHashState } from '../utils/hashState'
 import {
   createEmptyState,
   createItem,
@@ -262,7 +262,7 @@ export function useReceiptSplitter() {
 
   async function copyShareLink() {
     try {
-      await navigator.clipboard.writeText(window.location.href)
+      await navigator.clipboard.writeText(createShareUrl(receiptState))
       setNotice('Share link copied to clipboard.')
     } catch {
       setNotice('Clipboard access failed. Copy the URL from the address bar instead.')
@@ -301,7 +301,7 @@ export function useReceiptSplitter() {
           '',
         ]
       }),
-      `Share link: ${window.location.href}`,
+      `Share link: ${createShareUrl(receiptState)}`,
     ]
 
     try {

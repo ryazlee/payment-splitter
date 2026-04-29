@@ -28,9 +28,9 @@ export default function SummaryPanel({
 
   return (
     <section className="space-y-3 rounded bg-gray-800 p-4">
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
         {summaryStats.map((stat) => (
-          <div key={stat.label} className="flex items-center justify-between gap-3">
+          <div key={stat.label} className="flex min-w-[calc(50%-0.5rem)] flex-1 items-center justify-between gap-3">
             <span className={stat.emphasize ? 'text-white' : 'text-gray-400'}>{stat.label}</span>
             <span className={stat.emphasize ? 'text-white' : 'text-gray-300'}>{formatMoney(stat.value)}</span>
           </div>
