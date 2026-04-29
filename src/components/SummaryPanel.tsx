@@ -76,6 +76,12 @@ export default function SummaryPanel({
                     <span>{formatMoney(row.tipShare)}</span>
                   </div>
                 ) : null}
+                {row.feesShare > 0 ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Fees</span>
+                    <span>{formatMoney(row.feesShare)}</span>
+                  </div>
+                ) : null}
               </div>
             </article>
           ))

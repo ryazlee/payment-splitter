@@ -84,7 +84,8 @@ export function useReceiptSplitter() {
     const shareRatio = subtotal > 0 ? itemsTotal / subtotal : 0
     const taxShare = taxAmount * shareRatio
     const tipShare = tipAmount * shareRatio
-    const grandTotal = itemsTotal + taxShare + tipShare
+    const feesShare = feesAmount * shareRatio
+    const grandTotal = itemsTotal + taxShare + tipShare + feesShare
 
     return {
       participant,
@@ -92,13 +93,14 @@ export function useReceiptSplitter() {
       itemsTotal,
       taxShare,
       tipShare,
+      feesShare,
       grandTotal,
     }
   })
   const unassignedTotal = items
     .filter((item) => item.total > 0 && item.assignees.length === 0)
     .reduce((sum, item) => sum + item.total, 0)
-  const receiptTotal = subtotal + taxAmount + tipAmount
+  const receiptTotal = subtotal + taxAmount + tipAmount + feesAmount
   const remainingTotal = Math.max(
     receiptTotal - summaryRows.reduce((sum, row) => sum + row.grandTotal, 0),
     0,
@@ -295,6 +297,7 @@ export function useReceiptSplitter() {
           ...itemLines,
           ...(row.taxShare > 0 ? [`  - Tax: ${formatMoney(row.taxShare)}`] : []),
           ...(row.tipShare > 0 ? [`  - Tip: ${formatMoney(row.tipShare)}`] : []),
+          ...(row.feesShare > 0 ? [`  - Fees: ${formatMoney(row.feesShare)}`] : []),
           '',
         ]
       }),
@@ -317,6 +320,13 @@ export function useReceiptSplitter() {
     startTransition(() => {
       setReceiptState(createEmptyState())
     })
+  }
+
+  function updateCharge(field: 'tax' | 'tip' | 'fees' | 'discount', value: string) {
+    updateState((current) => ({
+      ...current,
+      [field]: value,
+    }))
   }
 
   function updateTitle(value: string) {
@@ -354,5 +364,6 @@ export function useReceiptSplitter() {
     copyShareLink,
     copySummary,
     clearReceipt,
+    updateCharge,
   }
 }

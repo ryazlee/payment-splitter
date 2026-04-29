@@ -27,6 +27,7 @@ export type SummaryRow = {
   itemsTotal: number
   taxShare: number
   tipShare: number
+  feesShare: number
   grandTotal: number
 }
 

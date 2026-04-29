@@ -1,4 +1,5 @@
 import AppHeader from '../AppHeader'
+import ChargesPanel from '../ChargesPanel'
 import ItemsPanel from '../ItemsPanel'
 import OcrPreviewPanel from '../OcrPreviewPanel'
 import ParticipantsPanel from '../ParticipantsPanel'
@@ -39,6 +40,7 @@ export default function SplitterScreen({ splitter }: SplitterScreenProps) {
     copyShareLink,
     copySummary,
     clearReceipt,
+    updateCharge,
   } = splitter
 
   return (
@@ -77,6 +79,14 @@ export default function SplitterScreen({ splitter }: SplitterScreenProps) {
           onUpdateItem={updateItem}
           onRemoveItem={removeItem}
           onToggleAssignee={toggleAssignee}
+        />
+
+        <ChargesPanel
+          tax={receiptState.tax}
+          tip={receiptState.tip}
+          fees={receiptState.fees}
+          discount={receiptState.discount}
+          onChargeChange={updateCharge}
         />
 
         <SummaryPanel
