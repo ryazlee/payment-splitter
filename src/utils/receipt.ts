@@ -220,22 +220,104 @@ function extractAmountValue(line: string): number {
   return parseMoneyInput(extractLastAmount(line))
 }
 
-function extractLeadingQuantity(line: string): number {
-  const match = line.match(/^\s*(\d{1,2})\s+/)
-  if (!match) {
+function parseItemQuantityCount(value: string): number {
+  const parsed = Number.parseInt(value, 10)
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 999) {
     return 1
   }
 
-  const quantity = Number(match[1])
-  return Number.isFinite(quantity) && quantity > 0 ? quantity : 1
+  return parsed
+}
+
+function parseNamePart(namePart: string): {
+  quantity: number
+  name: string
+  unitPrice?: number
+} {
+  let remaining = namePart.trim()
+  let quantity = 1
+  let unitPrice: number | undefined
+
+  const leadingWithUnitPrice = remaining.match(
+    /^(\d{1,3})\s*[@×xX]\s*\$?(\d+(?:[.,]\d{2})?)\s+(.+)$/,
+  )
+  if (leadingWithUnitPrice) {
+    quantity = parseItemQuantityCount(leadingWithUnitPrice[1])
+    unitPrice = parseMoneyInput(leadingWithUnitPrice[2].replace(',', '.'))
+    remaining = leadingWithUnitPrice[3]
+  } else {
+    const leadingWithMultiplier = remaining.match(/^(\d{1,3})\s*[@×xX]\s*(.+)$/)
+    if (leadingWithMultiplier) {
+      quantity = parseItemQuantityCount(leadingWithMultiplier[1])
+      remaining = leadingWithMultiplier[2]
+    } else {
+      const leadingQuantity = remaining.match(/^(?:qty\.?\s*:?\s*)?(\d{1,3})\s+(.+)$/i)
+      if (leadingQuantity) {
+        quantity = parseItemQuantityCount(leadingQuantity[1])
+        remaining = leadingQuantity[2]
+      }
+    }
+  }
+
+  if (quantity === 1) {
+    const trailingQuantity = remaining.match(/^(.+?)\s+(?:[@×xX]\s*(\d{1,3})|\((\d{1,3})\)|qty\.?\s*:?\s*(\d{1,3}))$/i)
+    if (trailingQuantity) {
+      remaining = trailingQuantity[1]
+      quantity = parseItemQuantityCount(trailingQuantity[2] ?? trailingQuantity[3] ?? trailingQuantity[4] ?? '1')
+    }
+  }
+
+  const inlineUnitPrice = remaining.match(/\s+@\s*\$?(\d+(?:[.,]\d{2})?)\s*/i)
+  if (inlineUnitPrice) {
+    unitPrice = parseMoneyInput(inlineUnitPrice[1].replace(',', '.'))
+    remaining = remaining.replace(inlineUnitPrice[0], ' ')
+  }
+
+  return {
+    quantity,
+    name: cleanItemName(remaining),
+    unitPrice: unitPrice && unitPrice > 0 ? unitPrice : undefined,
+  }
+}
+
+function resolveItemPricing(
+  lineTotal: number,
+  quantity: number,
+  unitPrice?: number,
+): { quantity: number; unitPrice: number } {
+  const safeQuantity = quantity > 1 ? quantity : 1
+
+  if (unitPrice && unitPrice > 0) {
+    return {
+      quantity: safeQuantity,
+      unitPrice,
+    }
+  }
+
+  if (safeQuantity > 1 && lineTotal > 0) {
+    return {
+      quantity: safeQuantity,
+      unitPrice: lineTotal / safeQuantity,
+    }
+  }
+
+  return {
+    quantity: 1,
+    unitPrice: lineTotal,
+  }
 }
 
 function cleanItemName(rawName: string): string {
   return rawName
-    .replace(/^\s*#?\d+\s+/, '')
+    .replace(/^\s*#?\d+\s*[@×xX]?\s*/, '')
+    .replace(/^(?:qty\.?\s*:?\s*)?\d+\s+/i, '')
     .replace(/^([A-Z]{1,3}\s*)?\d{0,3}\s*[A-Z]?\d{0,3}\.?\s+/, '')
     .replace(/^[A-Z]?\d{1,3}[A-Z]?\.?\s+/, '')
     .replace(/^[^A-Za-z]+/, '')
+    .replace(/\s+[@×xX]\s*\d+\s*$/i, '')
+    .replace(/\s+\(\d+\)\s*$/, '')
+    .replace(/\s+qty\.?\s*:?\s*\d+\s*$/i, '')
+    .replace(/\s+@\s*\$?\d+(?:[.,]\d{2})?\s*$/i, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -319,21 +401,20 @@ export function parseReceiptText(text: string, participants: string[]): ParsedRe
     const amount = extractAmountValue(line)
 
     if (match) {
-      const rawName = cleanItemName(match[1])
-      const quantity: number = pendingItem?.quantity ?? extractLeadingQuantity(match[1])
-      const name = pendingItem && looksLikeContinuation(rawName)
-        ? appendDetail(pendingItem.name, rawName)
-        : rawName
+      const parsedName = parseNamePart(match[1])
+      const quantity: number = pendingItem?.quantity ?? parsedName.quantity
+      const name = pendingItem && looksLikeContinuation(parsedName.name)
+        ? appendDetail(pendingItem.name, parsedName.name)
+        : parsedName.name
 
       if (amount > 0 && name) {
-        const normalizedQuantity = quantity > 1 && amount / quantity > 0 ? quantity : 1
-        const unitPrice = normalizedQuantity > 1 ? amount / normalizedQuantity : amount
+        const pricing = resolveItemPricing(amount, quantity, parsedName.unitPrice)
 
         items.push(
           createItem({
             name,
-            price: unitPrice.toFixed(2),
-            quantity: normalizedQuantity.toString(),
+            price: pricing.unitPrice.toFixed(2),
+            quantity: pricing.quantity.toString(),
             assignees: participants,
           }),
         )
@@ -341,9 +422,9 @@ export function parseReceiptText(text: string, participants: string[]): ParsedRe
         continue
       }
 
-      if (amount === 0 && rawName) {
+      if (amount === 0 && parsedName.name) {
         pendingItem = {
-          name: pendingItem ? appendDetail(pendingItem.name, rawName) : rawName,
+          name: pendingItem ? appendDetail(pendingItem.name, parsedName.name) : parsedName.name,
           quantity,
         }
         continue
