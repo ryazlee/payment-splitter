@@ -84,6 +84,130 @@ function extractLastAmount(line: string): string {
   return amount > 0 ? amount.toFixed(2) : ''
 }
 
+function extractSignedAmount(line: string): number {
+  const matches = line.match(/-?\$?\d+(?:[.,]\d{2})?/g)
+  if (!matches || matches.length === 0) {
+    return 0
+  }
+
+  const raw = matches.at(-1)?.replace(',', '.') ?? ''
+  return parseMoneyInput(raw)
+}
+
+function isStandaloneAmountLine(line: string): boolean {
+  return /^\s*-?\$?\d+(?:[.,]\d{2})?\s*$/.test(line)
+}
+
+type ChargeType = 'tax' | 'tip' | 'fees' | 'discount'
+
+const CHARGE_LABELS: Record<ChargeType, RegExp[]> = {
+  tax: [
+    /\b(?:sales|state|local|city|county|occupation)?\s*tax\b/i,
+    /\bvat\b/i,
+    /\bgst\b/i,
+    /\bhst\b/i,
+    /\bpst\b/i,
+    /\btax\s*\d/i,
+  ],
+  tip: [
+    /\b(?:auto\s*)?gratuity\b/i,
+    /\b(?:suggested\s*)?tip\b/i,
+    /\btip\s*\d/i,
+  ],
+  fees: [
+    /\bservice\s*(?:charge|fee)\b/i,
+    /\bdelivery\s*fee\b/i,
+    /\bconvenience\s*fee\b/i,
+    /\bprocessing\s*fee\b/i,
+    /\b(?:health|mandate|regulatory)\s*fee\b/i,
+    /\badmin(?:istrative)?\s*fee\b/i,
+    /\bsurcharge\b/i,
+    /\b(?:bag|bottle|cup)\s*fee\b/i,
+    /\b(?:SF|CA)\s+(?:mandate|health|surcharge)\b/i,
+    /\b(?:additional|extra)\s+fee\b/i,
+  ],
+  discount: [
+    /\bdiscount\b/i,
+    /\bpromo(?:tion)?\b/i,
+    /\bcoupon\b/i,
+    /\bsavings\b/i,
+    /\brewards?\b/i,
+    /\bloyalty\b/i,
+  ],
+}
+
+const CHARGE_SKIP =
+  /^(subtotal|total due|amount due|grand total|balance due|change due|total|items?)$/i
+
+function classifyChargeLine(line: string): ChargeType | null {
+  const normalized = line.trim()
+  if (!normalized || CHARGE_SKIP.test(normalized)) {
+    return null
+  }
+
+  for (const type of ['discount', 'tip', 'tax', 'fees'] as const) {
+    if (CHARGE_LABELS[type].some((pattern) => pattern.test(normalized))) {
+      return type
+    }
+  }
+
+  return null
+}
+
+function formatChargeTotal(value: number): string {
+  return value > 0 ? value.toFixed(2) : ''
+}
+
+function parseReceiptCharges(lines: string[]): {
+  tax: string
+  tip: string
+  fees: string
+  discount: string
+  consumedLineIndexes: Set<number>
+} {
+  const totals: Record<ChargeType, number> = {
+    tax: 0,
+    tip: 0,
+    fees: 0,
+    discount: 0,
+  }
+  const consumedLineIndexes = new Set<number>()
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]
+    const chargeType = classifyChargeLine(line)
+    if (!chargeType) {
+      continue
+    }
+
+    let amount = extractSignedAmount(line)
+    let consumedThrough = index
+
+    if (amount <= 0 && index + 1 < lines.length && isStandaloneAmountLine(lines[index + 1])) {
+      amount = extractSignedAmount(lines[index + 1])
+      consumedThrough = index + 1
+    }
+
+    if (amount <= 0) {
+      continue
+    }
+
+    totals[chargeType] += chargeType === 'discount' ? Math.abs(amount) : amount
+    consumedLineIndexes.add(index)
+    if (consumedThrough !== index) {
+      consumedLineIndexes.add(consumedThrough)
+    }
+  }
+
+  return {
+    tax: formatChargeTotal(totals.tax),
+    tip: formatChargeTotal(totals.tip),
+    fees: formatChargeTotal(totals.fees),
+    discount: formatChargeTotal(totals.discount),
+    consumedLineIndexes,
+  }
+}
+
 function cleanReceiptLine(line: string): string {
   return line
     .replace(/[|\\]/g, ' ')
@@ -169,38 +293,25 @@ export function normalizeState(input: unknown): ReceiptState | null {
 
 export function parseReceiptText(text: string, participants: string[]): ParsedReceiptImport {
   const skipWords =
-    /(subtotal|total due|amount due|grand total|balance|change due|cash|visa|mastercard|amex|debit|credit|table|server|guest|receipt|order|privacy|phone|cashier|dine-in|powered|thank you|merchant|auth|approval|transaction|card|tender|signature|customer copy)/i
+    /(subtotal|total due|amount due|grand total|balance due|change due|cash|visa|mastercard|amex|debit|credit|table|server|guest|receipt|order|privacy|phone|cashier|dine-in|powered|thank you|merchant|auth|approval|transaction|card|tender|signature|customer copy)/i
   const lines = text
     .split(/\r?\n/)
     .map(cleanReceiptLine)
     .filter(Boolean)
 
-  let tax = ''
-  let tip = ''
-  let fees = ''
-  let discount = ''
+  const { tax, tip, fees, discount, consumedLineIndexes } = parseReceiptCharges(lines)
 
   const items: ReceiptItem[] = []
   let pendingItem: { name: string; quantity: number } | null = null
 
-  for (const line of lines) {
-    if (!tax && /\b(tax|sales tax|vat)\b/i.test(line)) {
-      tax = extractLastAmount(line)
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]
+
+    if (consumedLineIndexes.has(index)) {
+      continue
     }
 
-    if (!tip && /\b(tip|gratuity)\b/i.test(line)) {
-      tip = extractLastAmount(line)
-    }
-
-    if (!fees && /\b(fee|service charge|delivery)\b/i.test(line)) {
-      fees = extractLastAmount(line)
-    }
-
-    if (!discount && /\b(discount|promo|coupon|savings)\b/i.test(line)) {
-      discount = extractLastAmount(line)
-    }
-
-    if (skipWords.test(line) || /\btotal\b/i.test(line)) {
+    if (skipWords.test(line) || /\btotal\b/i.test(line) || classifyChargeLine(line)) {
       continue
     }
 
@@ -246,8 +357,8 @@ export function parseReceiptText(text: string, participants: string[]): ParsedRe
 
     if (pendingItem) {
       pendingItem = {
-        ...pendingItem,
         name: appendDetail(pendingItem.name, detail),
+        quantity: pendingItem.quantity,
       }
       continue
     }
