@@ -5,15 +5,12 @@ import OcrPreviewPanel from '../OcrPreviewPanel'
 import ParticipantsPanel from '../ParticipantsPanel'
 import ReceiptOverviewPanel from '../ReceiptOverviewPanel'
 import SummaryPanel from '../SummaryPanel'
-import type { ReceiptSplitterModel } from '../../hooks/useReceiptSplitter'
+import { useReceiptSplitter } from '../../hooks/useReceiptSplitter'
 
-type SplitterScreenProps = {
-  splitter: ReceiptSplitterModel
-}
-
-export default function SplitterScreen({ splitter }: SplitterScreenProps) {
+export default function SplitterScreen() {
   const {
     receiptState,
+    summaryPath,
     personDraft,
     participants,
     summaryRows,
@@ -33,6 +30,7 @@ export default function SplitterScreen({ splitter }: SplitterScreenProps) {
     ocrPreview,
     setPersonDraft,
     updateTitle,
+    updatePayerVenmo,
     addParticipant,
     removeParticipant,
     addItem,
@@ -45,7 +43,7 @@ export default function SplitterScreen({ splitter }: SplitterScreenProps) {
     copySummary,
     clearReceipt,
     updateCharge,
-  } = splitter
+  } = useReceiptSplitter()
 
   return (
     <main className="min-h-screen bg-gray-900 p-4 text-white">
@@ -63,7 +61,10 @@ export default function SplitterScreen({ splitter }: SplitterScreenProps) {
           ocrStatus={ocrStatus}
           ocrProgress={ocrProgress}
           notice={notice}
+          payerVenmo={receiptState.payerVenmo}
+          summaryPath={summaryPath}
           onTitleChange={updateTitle}
+          onPayerVenmoChange={updatePayerVenmo}
           onReceiptFileSelect={processReceiptFile}
           onRetryReceiptOcr={retryReceiptOcr}
           onCopyShareLink={copyShareLink}
@@ -97,6 +98,8 @@ export default function SplitterScreen({ splitter }: SplitterScreenProps) {
         />
 
         <SummaryPanel
+          receiptTitle={receiptState.title}
+          payerVenmo={receiptState.payerVenmo}
           subtotal={subtotal}
           taxAmount={taxAmount}
           tipAmount={tipAmount}

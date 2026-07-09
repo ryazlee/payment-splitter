@@ -1,16 +1,15 @@
-import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReceiptItem, ReceiptState } from '../types'
-import { createShareUrl, encodeHashState, readHashState } from '../utils/hashState'
+import { createShareUrl, createSummaryPath, encodeHashState, readHashState } from '../utils/hashState'
 import {
   createEmptyState,
   createItem,
-  formatMoney,
   normalizeCurrencyInput,
   normalizeQuantityInput,
-  parseMoneyInput,
-  parseQuantity,
   parseReceiptText,
 } from '../utils/receipt'
+import { buildSummaryText, computeReceiptSummary } from '../utils/summary'
+import { normalizeVenmoHandle } from '../utils/venmo'
 
 export type ReceiptSplitterModel = ReturnType<typeof useReceiptSplitter>
 
@@ -62,56 +61,19 @@ export function useReceiptSplitter() {
     return () => window.removeEventListener('hashchange', handleHashChange)
   }, [])
 
-  const participants = Array.from(
-    new Set(receiptState.participants.map((name) => name.trim()).filter(Boolean)),
-  )
-  const participantSet = new Set(participants)
-  const items = receiptState.items.map((item) => {
-    const total = parseQuantity(item.quantity) * parseMoneyInput(item.price)
-    const assignees = item.assignees.filter((name) => participantSet.has(name))
-    const perPerson = assignees.length > 0 ? total / assignees.length : 0
-
-    return {
-      ...item,
-      total,
-      assignees,
-      perPerson,
-    }
-  })
-  const subtotal = items.reduce((sum, item) => sum + item.total, 0)
-  const taxAmount = parseMoneyInput(receiptState.tax)
-  const tipAmount = parseMoneyInput(receiptState.tip)
-  const feesAmount = parseMoneyInput(receiptState.fees)
-  const discountAmount = parseMoneyInput(receiptState.discount)
-  const summaryRows = participants.map((participant) => {
-    const assignedItems = items.filter((item) => item.assignees.includes(participant))
-    const itemsTotal = assignedItems.reduce((sum, item) => sum + item.perPerson, 0)
-    const shareRatio = subtotal > 0 ? itemsTotal / subtotal : 0
-    const taxShare = taxAmount * shareRatio
-    const tipShare = tipAmount * shareRatio
-    const feesShare = feesAmount * shareRatio
-    const discountShare = discountAmount * shareRatio
-    const grandTotal = itemsTotal + taxShare + tipShare + feesShare - discountShare
-
-    return {
-      participant,
-      assignedItems,
-      itemsTotal,
-      taxShare,
-      tipShare,
-      feesShare,
-      discountShare,
-      grandTotal,
-    }
-  })
-  const unassignedTotal = items
-    .filter((item) => item.total > 0 && item.assignees.length === 0)
-    .reduce((sum, item) => sum + item.total, 0)
-  const receiptTotal = subtotal + taxAmount + tipAmount + feesAmount - discountAmount
-  const remainingTotal = Math.max(
-    receiptTotal - summaryRows.reduce((sum, row) => sum + row.grandTotal, 0),
-    0,
-  )
+  const summary = useMemo(() => computeReceiptSummary(receiptState), [receiptState])
+  const {
+    participants,
+    subtotal,
+    taxAmount,
+    tipAmount,
+    feesAmount,
+    discountAmount,
+    receiptTotal,
+    remainingTotal,
+    unassignedTotal,
+    summaryRows,
+  } = summary
 
   function updateState(updater: (current: ReceiptState) => ReceiptState) {
     setReceiptState((current) => updater(current))
@@ -310,44 +272,8 @@ export function useReceiptSplitter() {
   }
 
   async function copySummary() {
-    const summaryStats = [
-      `Subtotal: ${formatMoney(subtotal)}`,
-      ...(taxAmount > 0 ? [`Tax: ${formatMoney(taxAmount)}`] : []),
-      ...(tipAmount > 0 ? [`Tip: ${formatMoney(tipAmount)}`] : []),
-      ...(feesAmount > 0 ? [`Fees: ${formatMoney(feesAmount)}`] : []),
-      ...(discountAmount > 0 ? [`Discount: -${formatMoney(discountAmount)}`] : []),
-      `Total: ${formatMoney(receiptTotal)}`,
-    ]
-
-    const lines = [
-      receiptState.title || 'Shared receipt',
-      '',
-      ...summaryStats,
-      '',
-      ...summaryRows.flatMap((row) => {
-        const itemLines = row.assignedItems.length
-          ? row.assignedItems.map(
-              (item) => `  - ${item.name || 'Untitled item'}: ${formatMoney(item.perPerson)}`,
-            )
-          : ['  - No assigned items']
-
-        const percentage = receiptTotal > 0 ? Math.round((row.grandTotal / receiptTotal) * 100) : 0
-
-        return [
-          `${row.participant} (${percentage}%): ${formatMoney(row.grandTotal)}`,
-          ...itemLines,
-          ...(row.taxShare > 0 ? [`  - Tax: ${formatMoney(row.taxShare)}`] : []),
-          ...(row.tipShare > 0 ? [`  - Tip: ${formatMoney(row.tipShare)}`] : []),
-          ...(row.feesShare > 0 ? [`  - Fees: ${formatMoney(row.feesShare)}`] : []),
-          ...(row.discountShare > 0 ? [`  - Discount: -${formatMoney(row.discountShare)}`] : []),
-          '',
-        ]
-      }),
-      `Share link: ${createShareUrl(receiptState)}`,
-    ]
-
     try {
-      await navigator.clipboard.writeText(lines.join('\n'))
+      await navigator.clipboard.writeText(buildSummaryText(receiptState, summary))
       setNotice('Summary copied to clipboard.')
     } catch {
       setNotice('Clipboard access failed. You can still share the URL hash link.')
@@ -385,8 +311,16 @@ export function useReceiptSplitter() {
     }))
   }
 
+  function updatePayerVenmo(value: string) {
+    updateState((current) => ({
+      ...current,
+      payerVenmo: normalizeVenmoHandle(value),
+    }))
+  }
+
   return {
     receiptState,
+    summaryPath: createSummaryPath(receiptState),
     personDraft,
     participants,
     summaryRows,
@@ -406,6 +340,7 @@ export function useReceiptSplitter() {
     ocrPreview,
     setPersonDraft,
     updateTitle,
+    updatePayerVenmo,
     addParticipant,
     removeParticipant,
     addItem,

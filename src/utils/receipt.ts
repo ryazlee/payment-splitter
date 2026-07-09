@@ -25,6 +25,7 @@ export function createEmptyState(): ReceiptState {
     tip: '',
     fees: '',
     discount: '',
+    payerVenmo: '',
   }
 }
 
@@ -370,6 +371,7 @@ export function normalizeState(input: unknown): ReceiptState | null {
     tip: typeof candidate.tip === 'string' ? candidate.tip : '',
     fees: typeof candidate.fees === 'string' ? candidate.fees : '',
     discount: typeof candidate.discount === 'string' ? candidate.discount : '',
+    payerVenmo: typeof candidate.payerVenmo === 'string' ? candidate.payerVenmo : '',
   }
 }
 

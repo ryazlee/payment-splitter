@@ -14,6 +14,7 @@ export type ReceiptState = {
   tip: string
   fees: string
   discount: string
+  payerVenmo: string
 }
 
 export type ComputedReceiptItem = ReceiptItem & {

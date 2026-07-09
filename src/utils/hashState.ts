@@ -4,6 +4,11 @@ import { createItem, normalizeState } from './receipt'
 const LEGACY_ITEM_SEPARATOR = '~'
 const LEGACY_ASSIGNEE_SEPARATOR = '|'
 
+function getAppRootPath(): string {
+  const base = import.meta.env.BASE_URL
+  return base.endsWith('/') ? base.slice(0, -1) : base
+}
+
 function encodeIndexedItem(params: URLSearchParams, item: ReceiptItem, index: number) {
   const itemKey = `i${index}`
 
@@ -77,6 +82,7 @@ export function readHashState(): ReceiptState | null {
     tip: params.get('tip') ?? '',
     fees: params.get('fees') ?? '',
     discount: params.get('discount') ?? '',
+    payerVenmo: params.get('venmo') ?? '',
   })
 
   if (!state) {
@@ -117,13 +123,32 @@ export function encodeHashState(state: ReceiptState): string {
   if (state.discount) {
     params.set('discount', state.discount)
   }
+  if (state.payerVenmo) {
+    params.set('venmo', state.payerVenmo)
+  }
 
   return params.toString()
 }
 
+export function createSummaryPath(state: ReceiptState): string {
+  const serialized = encodeHashState(state)
+  return serialized ? `/summary#${serialized}` : '/summary'
+}
+
 export function createShareUrl(state: ReceiptState): string {
   const serialized = encodeHashState(state)
-  const { origin, pathname } = window.location
+  const rootPath = getAppRootPath()
 
-  return serialized ? `${origin}${pathname}#${serialized}` : `${origin}${pathname}`
+  return serialized
+    ? `${window.location.origin}${rootPath}/#${serialized}`
+    : `${window.location.origin}${rootPath}/`
+}
+
+export function createSummaryUrl(state: ReceiptState): string {
+  const serialized = encodeHashState(state)
+  const rootPath = getAppRootPath()
+
+  return serialized
+    ? `${window.location.origin}${rootPath}${createSummaryPath(state)}`
+    : `${window.location.origin}${rootPath}/summary`
 }
