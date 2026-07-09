@@ -27,6 +27,8 @@ export default function SplitterScreen({ splitter }: SplitterScreenProps) {
     unassignedTotal,
     ocrStatus,
     ocrProgress,
+    isOcrProcessing,
+    receiptPreviewUrl,
     notice,
     ocrPreview,
     setPersonDraft,
@@ -37,7 +39,8 @@ export default function SplitterScreen({ splitter }: SplitterScreenProps) {
     updateItem,
     removeItem,
     toggleAssignee,
-    handleReceiptUpload,
+    processReceiptFile,
+    retryReceiptOcr,
     copyShareLink,
     copySummary,
     clearReceipt,
@@ -55,11 +58,14 @@ export default function SplitterScreen({ splitter }: SplitterScreenProps) {
           unassignedTotal={unassignedTotal}
           remainingTotal={remainingTotal}
           participantCount={participants.length}
+          receiptPreviewUrl={receiptPreviewUrl}
+          isOcrProcessing={isOcrProcessing}
           ocrStatus={ocrStatus}
           ocrProgress={ocrProgress}
           notice={notice}
           onTitleChange={updateTitle}
-          onReceiptUpload={handleReceiptUpload}
+          onReceiptFileSelect={processReceiptFile}
+          onRetryReceiptOcr={retryReceiptOcr}
           onCopyShareLink={copyShareLink}
           onCopySummary={copySummary}
           onClearReceipt={clearReceipt}

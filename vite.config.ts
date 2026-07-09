@@ -6,4 +6,10 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   base: '/payment-splitter/',
   plugins: [react(), tailwindcss()],
+  optimizeDeps: {
+    exclude: ['onnxruntime-web', 'ppu-paddle-ocr'],
+  },
+  worker: {
+    format: 'es',
+  },
 })

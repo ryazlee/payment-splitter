@@ -36,4 +36,6 @@ export type ParsedReceiptImport = {
   items: ReceiptItem[]
   tax: string
   tip: string
+  fees: string
+  discount: string
 }

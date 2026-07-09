@@ -1,5 +1,5 @@
-import type { ChangeEvent } from 'react'
 import { formatMoney } from '../utils/receipt'
+import ReceiptUploadZone from './ReceiptUploadZone'
 
 type ReceiptOverviewPanelProps = {
   title: string
@@ -7,11 +7,14 @@ type ReceiptOverviewPanelProps = {
   unassignedTotal: number
   remainingTotal: number
   participantCount: number
+  receiptPreviewUrl: string
+  isOcrProcessing: boolean
   ocrStatus: string
   ocrProgress: number
   notice: string
   onTitleChange: (value: string) => void
-  onReceiptUpload: (event: ChangeEvent<HTMLInputElement>) => void
+  onReceiptFileSelect: (file: File) => void
+  onRetryReceiptOcr: () => void
   onCopyShareLink: () => void
   onCopySummary: () => void
   onClearReceipt: () => void
@@ -23,11 +26,14 @@ export default function ReceiptOverviewPanel({
   unassignedTotal,
   remainingTotal,
   participantCount,
+  receiptPreviewUrl,
+  isOcrProcessing,
   ocrStatus,
   ocrProgress,
   notice,
   onTitleChange,
-  onReceiptUpload,
+  onReceiptFileSelect,
+  onRetryReceiptOcr,
   onCopyShareLink,
   onCopySummary,
   onClearReceipt,
@@ -45,11 +51,16 @@ export default function ReceiptOverviewPanel({
         {formatMoney(receiptTotal)} total · {formatMoney(unassignedTotal)} unassigned · {formatMoney(remainingTotal)} open
       </div>
 
+      <ReceiptUploadZone
+        receiptPreviewUrl={receiptPreviewUrl}
+        isProcessing={isOcrProcessing}
+        ocrStatus={ocrStatus}
+        ocrProgress={ocrProgress}
+        onFileSelect={onReceiptFileSelect}
+        onRetry={onRetryReceiptOcr}
+      />
+
       <div className="grid grid-cols-2 gap-2">
-        <label className="flex cursor-pointer items-center justify-center rounded bg-gray-700 px-3 py-2 text-sm text-white">
-          Upload
-          <input type="file" accept="image/*" className="hidden" onChange={onReceiptUpload} />
-        </label>
         <button
           type="button"
           onClick={onCopyShareLink}
@@ -67,17 +78,15 @@ export default function ReceiptOverviewPanel({
         <button
           type="button"
           onClick={onClearReceipt}
-          className="rounded bg-gray-700 px-3 py-2 text-sm text-white hover:bg-gray-600"
+          className="col-span-2 rounded bg-gray-700 px-3 py-2 text-sm text-white hover:bg-gray-600"
         >
           Reset
         </button>
       </div>
 
-      <div className="text-sm text-gray-400">
-        OCR: {ocrStatus}
-        {ocrProgress > 0 ? ` (${Math.round(ocrProgress * 100)}%)` : ''}
-        {participantCount > 0 ? ` · ${participantCount} people` : ''}
-      </div>
+      {participantCount > 0 ? (
+        <div className="text-sm text-gray-400">{participantCount} people in the split</div>
+      ) : null}
 
       {notice ? <p className="text-sm text-gray-300">{notice}</p> : null}
     </section>

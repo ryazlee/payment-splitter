@@ -1,5 +1,4 @@
-import { startTransition, useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { createWorker, OEM, PSM } from 'tesseract.js'
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReceiptItem, ReceiptState } from '../types'
 import { createShareUrl, encodeHashState, readHashState } from '../utils/hashState'
 import {
@@ -11,7 +10,6 @@ import {
   parseMoneyInput,
   parseQuantity,
   parseReceiptText,
-  preprocessReceiptImage,
 } from '../utils/receipt'
 
 export type ReceiptSplitterModel = ReturnType<typeof useReceiptSplitter>
@@ -24,8 +22,12 @@ export function useReceiptSplitter() {
   const [ocrPreview, setOcrPreview] = useState('')
   const [ocrStatus, setOcrStatus] = useState('Idle')
   const [ocrProgress, setOcrProgress] = useState(0)
+  const [isOcrProcessing, setIsOcrProcessing] = useState(false)
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState('')
   const [notice, setNotice] = useState('')
   const lastSerializedRef = useRef('')
+  const lastReceiptFileRef = useRef<File | null>(null)
+  const receiptPreviewUrlRef = useRef('')
 
   useEffect(() => {
     const serialized = encodeHashState(receiptState)
@@ -211,43 +213,51 @@ export function useReceiptSplitter() {
     }))
   }
 
-  async function handleReceiptUpload(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    event.target.value = ''
+  useEffect(() => {
+    return () => {
+      if (receiptPreviewUrlRef.current) {
+        URL.revokeObjectURL(receiptPreviewUrlRef.current)
+      }
+    }
+  }, [])
 
-    if (!file) {
+  function setReceiptPreview(file: File) {
+    if (receiptPreviewUrlRef.current) {
+      URL.revokeObjectURL(receiptPreviewUrlRef.current)
+    }
+
+    const nextUrl = URL.createObjectURL(file)
+    receiptPreviewUrlRef.current = nextUrl
+    setReceiptPreviewUrl(nextUrl)
+  }
+
+  const processReceiptFile = useCallback(async (file: File) => {
+    const {
+      describeUnsupportedReceiptImage,
+      isSupportedReceiptImage,
+      recognizeReceiptImage,
+    } = await import('../utils/ocr')
+
+    if (!isSupportedReceiptImage(file)) {
+      setNotice(describeUnsupportedReceiptImage(file))
       return
     }
 
-    setNotice('')
+    lastReceiptFileRef.current = file
+    setReceiptPreview(file)
+    setNotice('First scan downloads the scanner (~15 MB), then caches it for next time.')
     setOcrProgress(0)
-    setOcrStatus('Reading receipt...')
+    setOcrStatus('Loading scanner...')
+    setIsOcrProcessing(true)
 
     try {
-      const worker = await createWorker('eng', OEM.LSTM_ONLY, {
-        logger(message) {
-          if (message.status) {
-            setOcrStatus(message.status)
-          }
-
-          if (typeof message.progress === 'number') {
-            setOcrProgress(message.progress)
-          }
-        },
+      const extractedText = await recognizeReceiptImage(file, ({ status, progress }) => {
+        setOcrStatus(status)
+        setOcrProgress(progress)
       })
-
-      const preparedImage = await preprocessReceiptImage(file)
-      await worker.setParameters({
-        tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
-        preserve_interword_spaces: '1',
-        user_defined_dpi: '300',
-      })
-      const result = await worker.recognize(preparedImage, { rotateAuto: true })
-      await worker.terminate()
-
-      const extractedText = result.data.text.trim()
       const parsedReceipt = parseReceiptText(extractedText, participants)
       setOcrPreview(extractedText)
+      setNotice('')
 
       startTransition(() => {
         updateState((current) => ({
@@ -258,6 +268,8 @@ export function useReceiptSplitter() {
               : current.title,
           tax: parsedReceipt.tax || current.tax,
           tip: parsedReceipt.tip || current.tip,
+          fees: parsedReceipt.fees || current.fees,
+          discount: parsedReceipt.discount || current.discount,
           items:
             parsedReceipt.items.length > 0
               ? [...current.items.filter((item) => item.name || item.price), ...parsedReceipt.items]
@@ -273,8 +285,20 @@ export function useReceiptSplitter() {
     } catch {
       setOcrStatus('OCR failed')
       setNotice('The receipt image could not be processed. Try a sharper crop or enter items manually.')
+    } finally {
+      setIsOcrProcessing(false)
+      setOcrProgress(0)
     }
-  }
+  }, [participants])
+
+  const retryReceiptOcr = useCallback(async () => {
+    const file = lastReceiptFileRef.current
+    if (!file) {
+      return
+    }
+
+    await processReceiptFile(file)
+  }, [processReceiptFile])
 
   async function copyShareLink() {
     try {
@@ -335,6 +359,13 @@ export function useReceiptSplitter() {
     setOcrPreview('')
     setOcrProgress(0)
     setOcrStatus('Idle')
+    setIsOcrProcessing(false)
+    lastReceiptFileRef.current = null
+    if (receiptPreviewUrlRef.current) {
+      URL.revokeObjectURL(receiptPreviewUrlRef.current)
+      receiptPreviewUrlRef.current = ''
+    }
+    setReceiptPreviewUrl('')
     startTransition(() => {
       setReceiptState(createEmptyState())
     })
@@ -369,6 +400,8 @@ export function useReceiptSplitter() {
     unassignedTotal,
     ocrStatus,
     ocrProgress,
+    isOcrProcessing,
+    receiptPreviewUrl,
     notice,
     ocrPreview,
     setPersonDraft,
@@ -379,7 +412,8 @@ export function useReceiptSplitter() {
     updateItem,
     removeItem,
     toggleAssignee,
-    handleReceiptUpload,
+    processReceiptFile,
+    retryReceiptOcr,
     copyShareLink,
     copySummary,
     clearReceipt,

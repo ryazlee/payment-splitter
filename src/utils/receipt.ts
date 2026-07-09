@@ -74,38 +74,6 @@ export function formatMoney(value: number): string {
   return currency.format(value || 0)
 }
 
-export async function preprocessReceiptImage(file: Blob): Promise<HTMLCanvasElement> {
-  const bitmap = await createImageBitmap(file)
-  const scale = 2
-  const canvas = document.createElement('canvas')
-  canvas.width = bitmap.width * scale
-  canvas.height = bitmap.height * scale
-
-  const context = canvas.getContext('2d')
-  if (!context) {
-    bitmap.close()
-    throw new Error('Canvas preprocessing is unavailable in this browser.')
-  }
-
-  context.filter = 'grayscale(1) contrast(1.35) brightness(1.05)'
-  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-  bitmap.close()
-
-  const imageData = context.getImageData(0, 0, canvas.width, canvas.height)
-  const { data } = imageData
-
-  for (let index = 0; index < data.length; index += 4) {
-    const value = data[index]
-    const normalized = value > 178 ? 255 : Math.max(0, value - 24)
-    data[index] = normalized
-    data[index + 1] = normalized
-    data[index + 2] = normalized
-  }
-
-  context.putImageData(imageData, 0, 0)
-  return canvas
-}
-
 function extractLastAmount(line: string): string {
   const matches = line.match(/-?\$?\d+(?:[.,]\d{2})?/g)
   if (!matches || matches.length === 0) {
@@ -200,7 +168,8 @@ export function normalizeState(input: unknown): ReceiptState | null {
 }
 
 export function parseReceiptText(text: string, participants: string[]): ParsedReceiptImport {
-  const skipWords = /(subtotal|total|tax|tip|gratuity|balance|change|cash|visa|mastercard|amex|debit|credit|table|server|guest|receipt|order|privacy|clover|phone|cashier|dine-in|main dining|boulevard|vallejo|powered)/i
+  const skipWords =
+    /(subtotal|total due|amount due|grand total|balance|change due|cash|visa|mastercard|amex|debit|credit|table|server|guest|receipt|order|privacy|phone|cashier|dine-in|powered|thank you|merchant|auth|approval|transaction|card|tender|signature|customer copy)/i
   const lines = text
     .split(/\r?\n/)
     .map(cleanReceiptLine)
@@ -208,12 +177,14 @@ export function parseReceiptText(text: string, participants: string[]): ParsedRe
 
   let tax = ''
   let tip = ''
+  let fees = ''
+  let discount = ''
 
   const items: ReceiptItem[] = []
   let pendingItem: { name: string; quantity: number } | null = null
 
   for (const line of lines) {
-    if (!tax && /\btax\b/i.test(line)) {
+    if (!tax && /\b(tax|sales tax|vat)\b/i.test(line)) {
       tax = extractLastAmount(line)
     }
 
@@ -221,7 +192,15 @@ export function parseReceiptText(text: string, participants: string[]): ParsedRe
       tip = extractLastAmount(line)
     }
 
-    if (skipWords.test(line)) {
+    if (!fees && /\b(fee|service charge|delivery)\b/i.test(line)) {
+      fees = extractLastAmount(line)
+    }
+
+    if (!discount && /\b(discount|promo|coupon|savings)\b/i.test(line)) {
+      discount = extractLastAmount(line)
+    }
+
+    if (skipWords.test(line) || /\btotal\b/i.test(line)) {
       continue
     }
 
@@ -279,5 +258,5 @@ export function parseReceiptText(text: string, participants: string[]): ParsedRe
     }
   }
 
-  return { items, tax, tip }
+  return { items, tax, tip, fees, discount }
 }
