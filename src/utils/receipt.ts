@@ -5,6 +5,9 @@ const currency = new Intl.NumberFormat('en-US', {
   currency: 'USD',
 })
 
+const MONTH_NAMES =
+  'January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec'
+
 export function createItem(overrides: Partial<ReceiptItem> = {}): ReceiptItem {
   return {
     id: crypto.randomUUID(),
@@ -76,7 +79,7 @@ export function formatMoney(value: number): string {
 }
 
 function extractLastAmount(line: string): string {
-  const matches = line.match(/-?\$?\d+(?:[.,]\d{2})?/g)
+  const matches = line.match(/-?\$\d+(?:[.,]\d{2})?|-?\d+[.,]\d{2}/g)
   if (!matches || matches.length === 0) {
     return ''
   }
@@ -86,7 +89,7 @@ function extractLastAmount(line: string): string {
 }
 
 function extractSignedAmount(line: string): number {
-  const matches = line.match(/-?\$?\d+(?:[.,]\d{2})?/g)
+  const matches = line.match(/-?\$\d+(?:[.,]\d{2})?|-?\d+[.,]\d{2}/g)
   if (!matches || matches.length === 0) {
     return 0
   }
@@ -96,7 +99,7 @@ function extractSignedAmount(line: string): number {
 }
 
 function isStandaloneAmountLine(line: string): boolean {
-  return /^\s*-?\$?\d+(?:[.,]\d{2})?\s*$/.test(line)
+  return /^\s*-?(?:\$\d+(?:[.,]\d{2})?|\d+[.,]\d{2})\s*$/.test(line)
 }
 
 type ChargeType = 'tax' | 'tip' | 'fees' | 'discount'
@@ -230,6 +233,16 @@ function parseItemQuantityCount(value: string): number {
   return parsed
 }
 
+function parseEachUnitPrice(line: string): number | undefined {
+  const match = line.match(/\(\s*\$?(\d+(?:[.,]\d{2})?)\s*(?:each|ea\.?)\s*\)/i)
+  if (!match) {
+    return undefined
+  }
+
+  const amount = parseMoneyInput(match[1].replace(',', '.'))
+  return amount > 0 ? amount : undefined
+}
+
 function parseNamePart(namePart: string): {
   quantity: number
   name: string
@@ -261,11 +274,21 @@ function parseNamePart(namePart: string): {
   }
 
   if (quantity === 1) {
-    const trailingQuantity = remaining.match(/^(.+?)\s+(?:[@×xX]\s*(\d{1,3})|\((\d{1,3})\)|qty\.?\s*:?\s*(\d{1,3}))$/i)
+    const trailingQuantity = remaining.match(
+      /^(.+?)\s+(?:[@×xX]\s*(\d{1,3})|\((\d{1,3})\)|qty\.?\s*:?\s*(\d{1,3}))$/i,
+    )
     if (trailingQuantity) {
       remaining = trailingQuantity[1]
-      quantity = parseItemQuantityCount(trailingQuantity[2] ?? trailingQuantity[3] ?? trailingQuantity[4] ?? '1')
+      quantity = parseItemQuantityCount(
+        trailingQuantity[2] ?? trailingQuantity[3] ?? trailingQuantity[4] ?? '1',
+      )
     }
+  }
+
+  const eachPrice = parseEachUnitPrice(remaining)
+  if (eachPrice) {
+    unitPrice = eachPrice
+    remaining = remaining.replace(/\(\s*\$?\d+(?:[.,]\d{2})?\s*(?:each|ea\.?)\s*\)/i, ' ')
   }
 
   const inlineUnitPrice = remaining.match(/\s+@\s*\$?(\d+(?:[.,]\d{2})?)\s*/i)
@@ -319,12 +342,17 @@ function cleanItemName(rawName: string): string {
     .replace(/\s+\(\d+\)\s*$/, '')
     .replace(/\s+qty\.?\s*:?\s*\d+\s*$/i, '')
     .replace(/\s+@\s*\$?\d+(?:[.,]\d{2})?\s*$/i, '')
+    .replace(/\(\s*\$?\d+(?:[.,]\d{2})?\s*(?:each|ea\.?)\s*\)/i, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
 
 function looksLikeContinuation(line: string): boolean {
   if (!line) {
+    return false
+  }
+
+  if (parseEachUnitPrice(line)) {
     return false
   }
 
@@ -338,6 +366,142 @@ function appendDetail(base: string, detail: string): string {
   }
 
   return `${base} ${detail}`.replace(/\s+/g, ' ').trim()
+}
+
+function isPhoneLine(line: string): boolean {
+  return /(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}\b/.test(line)
+    && !/\$\d/.test(line)
+}
+
+function isZipLine(line: string): boolean {
+  return /^\d{5}(?:-\d{4})?$/.test(line.trim())
+}
+
+function isWebsiteLine(line: string): boolean {
+  return /^(?:https?:\/\/)?(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}(?:\/\S*)?$/i.test(line.trim())
+}
+
+function isAddressLine(line: string): boolean {
+  if (/\$\d|\d+[.,]\d{2}/.test(line)) {
+    return false
+  }
+
+  const hasStreetNumber = /^\d{1,6}\s+[A-Za-z]/.test(line)
+  const hasStreetType =
+    /\b(?:st|street|ave|avenue|blvd|boulevard|rd|road|dr|drive|ln|lane|way|ct|court|pl|place)\b\.?/i.test(line)
+  const hasCityState = /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2}\b/.test(line)
+  const hasUnit = /\b(?:suite|ste|apt|unit|#)\s*\d+/i.test(line)
+
+  return (hasStreetNumber && hasStreetType) || hasStreetNumber || hasCityState || hasUnit
+}
+
+function isHeaderNoiseLine(line: string): boolean {
+  return (
+    isPhoneLine(line)
+    || isZipLine(line)
+    || isWebsiteLine(line)
+    || isAddressLine(line)
+    || /^(?:for here|to go|take ?out|dine[- ]?in|pickup|delivery)$/i.test(line)
+    || /^(?:aid|auth(?:orization)?|approval|verified|merchant|terminal|batch|check|guest|server|table|host)\b/i.test(line)
+    || /\b(?:visa|mastercard|amex|discover|debit|credit)\b/i.test(line)
+    || /^(?:receipt|order|check)\s*[#:.]?\s*\w+/i.test(line)
+    || /^\(?\d{1,2}:\d{2}\s*(?:am|pm)\)?$/i.test(line)
+    || (/\b\d{1,2}:\d{2}\s*(?:am|pm)\b/i.test(line) && !/\$\d/.test(line))
+    || /^[A-Z]{1,4}\.?$/i.test(line)
+  )
+}
+
+function extractDateFromText(text: string): string {
+  const monthDayYear = text.match(
+    new RegExp(`\\b(${MONTH_NAMES})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{2,4})\\b`, 'i'),
+  )
+  if (monthDayYear) {
+    const [, month, day, yearRaw] = monthDayYear
+    const year = yearRaw.length === 2 ? `20${yearRaw}` : yearRaw
+    return `${month} ${Number(day)}, ${year}`
+  }
+
+  const numericDate = text.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b/)
+  if (numericDate) {
+    const [, month, day, yearRaw] = numericDate
+    const year = yearRaw.length === 2 ? `20${yearRaw}` : yearRaw
+    return `${Number(month)}/${Number(day)}/${year}`
+  }
+
+  return ''
+}
+
+function looksLikeRestaurantName(line: string): boolean {
+  if (!line || line.length < 2 || line.length > 60) {
+    return false
+  }
+
+  if (isHeaderNoiseLine(line) || classifyChargeLine(line) || /\$\d/.test(line)) {
+    return false
+  }
+
+  if (!/[A-Za-z]{2,}/.test(line)) {
+    return false
+  }
+
+  if (/^\d/.test(line)) {
+    return false
+  }
+
+  return true
+}
+
+function extractReceiptTitle(lines: string[]): string {
+  const restaurantName = lines.find((line) => looksLikeRestaurantName(line)) ?? ''
+  const date = extractDateFromText(lines.join(' '))
+
+  if (restaurantName && date) {
+    return `${restaurantName} · ${date}`
+  }
+
+  return restaurantName || date
+}
+
+function refineChargeAgainstItems(
+  chargeAmount: string,
+  items: ReceiptItem[],
+  lines: string[],
+  chargeType: ChargeType,
+  consumedLineIndexes: Set<number>,
+): string {
+  const amount = parseMoneyInput(chargeAmount)
+  if (amount <= 0) {
+    return chargeAmount
+  }
+
+  const itemsSubtotal = items.reduce(
+    (sum, item) => sum + parseQuantity(item.quantity) * parseMoneyInput(item.price),
+    0,
+  )
+  if (itemsSubtotal <= 0) {
+    return chargeAmount
+  }
+
+  const looksLikeSubtotal = Math.abs(amount - itemsSubtotal) < 0.02
+  if (!looksLikeSubtotal) {
+    return chargeAmount
+  }
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (classifyChargeLine(lines[index]) !== chargeType) {
+      continue
+    }
+
+    if (index + 1 < lines.length && isStandaloneAmountLine(lines[index + 1])) {
+      const nextAmount = extractSignedAmount(lines[index + 1])
+      if (nextAmount > 0 && Math.abs(nextAmount - itemsSubtotal) >= 0.02) {
+        consumedLineIndexes.add(index + 1)
+        return nextAmount.toFixed(2)
+      }
+    }
+  }
+
+  return ''
 }
 
 export function normalizeState(input: unknown): ReceiptState | null {
@@ -375,18 +539,52 @@ export function normalizeState(input: unknown): ReceiptState | null {
   }
 }
 
+type PendingItem = { name: string; quantity: number; unitPrice?: number }
+
+function tryCommitPendingItem(
+  pendingItem: PendingItem | null,
+  amount: number,
+  eachUnitPrice: number | undefined,
+  participants: string[],
+): { item: ReceiptItem | null; pendingItem: PendingItem | null } {
+  if (!pendingItem || (amount <= 0 && !eachUnitPrice)) {
+    return { item: null, pendingItem }
+  }
+
+  const pricing = resolveItemPricing(
+    amount > 0 ? amount : (eachUnitPrice ?? 0) * pendingItem.quantity,
+    pendingItem.quantity,
+    eachUnitPrice ?? pendingItem.unitPrice,
+  )
+
+  if (pricing.unitPrice <= 0 || !pendingItem.name) {
+    return { item: null, pendingItem }
+  }
+
+  return {
+    item: createItem({
+      name: pendingItem.name,
+      price: pricing.unitPrice.toFixed(2),
+      quantity: pricing.quantity.toString(),
+      assignees: participants,
+    }),
+    pendingItem: null,
+  }
+}
+
 export function parseReceiptText(text: string, participants: string[]): ParsedReceiptImport {
   const skipWords =
-    /(subtotal|total due|amount due|grand total|balance due|change due|cash|visa|mastercard|amex|debit|credit|table|server|guest|receipt|order|privacy|phone|cashier|dine-in|powered|thank you|merchant|auth|approval|transaction|card|tender|signature|customer copy)/i
+    /(subtotal|total due|amount due|grand total|balance due|change due|cash|visa|mastercard|amex|debit|credit|table|server|guest|receipt|order|privacy|phone|cashier|dine-in|powered|thank you|merchant|auth|approval|transaction|card|tender|signature|customer copy|authorization|verified|for here|to go)/i
   const lines = text
     .split(/\r?\n/)
     .map(cleanReceiptLine)
     .filter(Boolean)
 
+  const title = extractReceiptTitle(lines)
   const { tax, tip, fees, discount, consumedLineIndexes } = parseReceiptCharges(lines)
 
   const items: ReceiptItem[] = []
-  let pendingItem: { name: string; quantity: number } | null = null
+  let pendingItem: PendingItem | null = null
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index]
@@ -395,22 +593,53 @@ export function parseReceiptText(text: string, participants: string[]): ParsedRe
       continue
     }
 
-    if (skipWords.test(line) || /\btotal\b/i.test(line) || classifyChargeLine(line)) {
+    if (
+      skipWords.test(line)
+      || /\btotal\b/i.test(line)
+      || classifyChargeLine(line)
+      || isHeaderNoiseLine(line)
+    ) {
       continue
     }
 
-    const match = line.match(/(.+?)\s+(-?\$?\d+(?:[.,]\d{2})?)$/)
+    const eachUnitPrice = parseEachUnitPrice(line)
     const amount = extractAmountValue(line)
+    const match = line.match(/(.+?)\s+(-?(?:\$\d+(?:[.,]\d{2})?|\d+[.,]\d{2}))$/)
+
+    const committed = tryCommitPendingItem(pendingItem, amount, eachUnitPrice, participants)
+    if (committed.item) {
+      items.push(committed.item)
+      pendingItem = committed.pendingItem
+      continue
+    }
+    pendingItem = committed.pendingItem
+
+    const quantityOnly = line.match(/^(.+?)\s+[@×xX]\s*(\d{1,3})$/i)
+    if (quantityOnly && !/(?:\$\d|\d+[.,]\d{2})/.test(line)) {
+      const name = cleanItemName(quantityOnly[1])
+      if (name) {
+        pendingItem = {
+          name: pendingItem ? appendDetail(pendingItem.name, name) : name,
+          quantity: parseItemQuantityCount(quantityOnly[2]),
+          unitPrice: pendingItem?.unitPrice,
+        }
+        continue
+      }
+    }
 
     if (match) {
       const parsedName = parseNamePart(match[1])
-      const quantity: number = pendingItem?.quantity ?? parsedName.quantity
+      const quantity = pendingItem?.quantity ?? parsedName.quantity
       const name = pendingItem && looksLikeContinuation(parsedName.name)
         ? appendDetail(pendingItem.name, parsedName.name)
         : parsedName.name
 
       if (amount > 0 && name) {
-        const pricing = resolveItemPricing(amount, quantity, parsedName.unitPrice)
+        const pricing = resolveItemPricing(
+          amount,
+          quantity,
+          eachUnitPrice ?? parsedName.unitPrice ?? pendingItem?.unitPrice,
+        )
 
         items.push(
           createItem({
@@ -428,6 +657,7 @@ export function parseReceiptText(text: string, participants: string[]): ParsedRe
         pendingItem = {
           name: pendingItem ? appendDetail(pendingItem.name, parsedName.name) : parsedName.name,
           quantity,
+          unitPrice: parsedName.unitPrice ?? pendingItem?.unitPrice,
         }
         continue
       }
@@ -442,6 +672,7 @@ export function parseReceiptText(text: string, participants: string[]): ParsedRe
       pendingItem = {
         name: appendDetail(pendingItem.name, detail),
         quantity: pendingItem.quantity,
+        unitPrice: pendingItem.unitPrice,
       }
       continue
     }
@@ -452,5 +683,15 @@ export function parseReceiptText(text: string, participants: string[]): ParsedRe
     }
   }
 
-  return { items, tax, tip, fees, discount }
+  const refinedTip = refineChargeAgainstItems(tip, items, lines, 'tip', consumedLineIndexes)
+  const refinedTax = refineChargeAgainstItems(tax, items, lines, 'tax', consumedLineIndexes)
+
+  return {
+    title,
+    items,
+    tax: refinedTax,
+    tip: refinedTip,
+    fees,
+    discount,
+  }
 }

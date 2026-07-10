@@ -34,6 +34,7 @@ export type SummaryRow = {
 }
 
 export type ParsedReceiptImport = {
+  title: string
   items: ReceiptItem[]
   tax: string
   tip: string

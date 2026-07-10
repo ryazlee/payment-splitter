@@ -1,6 +1,6 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReceiptItem, ReceiptState } from '../types'
-import { createShareUrl, createSummaryPath, encodeHashState, readHashState } from '../utils/hashState'
+import { createShareUrl, createSummaryLocation, encodeHashState, readHashState } from '../utils/hashState'
 import {
   createEmptyState,
   createItem,
@@ -226,7 +226,7 @@ export function useReceiptSplitter() {
           ...current,
           title:
             current.title === 'Shared receipt'
-              ? file.name.replace(/\.[^.]+$/, '')
+              ? parsedReceipt.title || file.name.replace(/\.[^.]+$/, '')
               : current.title,
           tax: parsedReceipt.tax || current.tax,
           tip: parsedReceipt.tip || current.tip,
@@ -320,7 +320,7 @@ export function useReceiptSplitter() {
 
   return {
     receiptState,
-    summaryPath: createSummaryPath(receiptState),
+    summaryLocation: createSummaryLocation(receiptState),
     personDraft,
     participants,
     summaryRows,

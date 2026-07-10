@@ -102,7 +102,6 @@ export function buildSummaryText(state: ReceiptState, summary: ReceiptSummary): 
 
   const lines = [
     receiptTitle,
-    `Summary: ${createSummaryUrl(state)}`,
     '',
     ...summaryStats,
     '',
@@ -135,6 +134,7 @@ export function buildSummaryText(state: ReceiptState, summary: ReceiptSummary): 
         '',
       ]
     }),
+    `Summary: ${createSummaryUrl(state)}`,
   ]
 
   return lines.join('\n').trimEnd()

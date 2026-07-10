@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, type To } from 'react-router-dom'
 import { formatMoney } from '../utils/receipt'
 import ReceiptUploadZone from './ReceiptUploadZone'
 
@@ -14,7 +14,7 @@ type ReceiptOverviewPanelProps = {
   ocrProgress: number
   notice: string
   payerVenmo: string
-  summaryPath: string
+  summaryLocation: To
   onTitleChange: (value: string) => void
   onPayerVenmoChange: (value: string) => void
   onReceiptFileSelect: (file: File) => void
@@ -36,7 +36,7 @@ export default function ReceiptOverviewPanel({
   ocrProgress,
   notice,
   payerVenmo,
-  summaryPath,
+  summaryLocation,
   onTitleChange,
   onPayerVenmoChange,
   onReceiptFileSelect,
@@ -106,7 +106,7 @@ export default function ReceiptOverviewPanel({
           Copy summary
         </button>
         <Link
-          to={summaryPath}
+          to={summaryLocation}
           className="rounded bg-gray-700 px-3 py-2 text-center text-sm text-white hover:bg-gray-600"
         >
           Show summary

@@ -10,7 +10,7 @@ import { useReceiptSplitter } from '../../hooks/useReceiptSplitter'
 export default function SplitterScreen() {
   const {
     receiptState,
-    summaryPath,
+    summaryLocation,
     personDraft,
     participants,
     summaryRows,
@@ -62,7 +62,7 @@ export default function SplitterScreen() {
           ocrProgress={ocrProgress}
           notice={notice}
           payerVenmo={receiptState.payerVenmo}
-          summaryPath={summaryPath}
+          summaryLocation={summaryLocation}
           onTitleChange={updateTitle}
           onPayerVenmoChange={updatePayerVenmo}
           onReceiptFileSelect={processReceiptFile}
