@@ -35,6 +35,15 @@
         }
       } catch (e) {}
     </script>
+    <script>
+      // SPA: we'll send the first pageview ourselves after React mounts.
+      window.goatcounter = { no_onload: true }
+    </script>
+    <script
+      data-goatcounter="https://ryab.goatcounter.com/count"
+      async
+      src="https://gc.zgo.at/count.js"
+    ></script>
   </head>
   <body>
     <div id="root"></div>
