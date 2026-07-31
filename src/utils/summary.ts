@@ -21,11 +21,11 @@ export type ReceiptSummary = {
   summaryRows: SummaryRow[]
 }
 
-function amountForShare(total: number, shareCount: number, shareTotal: number): number {
-  if (shareCount <= 0 || shareTotal <= 0 || total <= 0) {
+function amountForShare(total: number, shareCount: number, quantity: number): number {
+  if (shareCount <= 0 || quantity <= 0 || total <= 0) {
     return 0
   }
-  return (shareCount / shareTotal) * total
+  return (shareCount / quantity) * total
 }
 
 export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
@@ -34,7 +34,8 @@ export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
   )
   const participantSet = new Set(participants)
   const items = state.items.map((item) => {
-    const total = parseQuantity(item.quantity) * parseMoneyInput(item.price)
+    const quantity = parseQuantity(item.quantity)
+    const total = quantity * parseMoneyInput(item.price)
     const shares: Record<string, number> = {}
     for (const [name, count] of Object.entries(item.shares)) {
       if (participantSet.has(name) && count > 0) {
@@ -44,7 +45,7 @@ export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
     const shareTotal = getShareTotal(shares)
     const amountByParticipant: Record<string, number> = {}
     for (const [name, count] of Object.entries(shares)) {
-      amountByParticipant[name] = amountForShare(total, count, shareTotal)
+      amountByParticipant[name] = amountForShare(total, count, quantity)
     }
 
     return {
@@ -88,9 +89,14 @@ export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
       grandTotal,
     }
   })
-  const unassignedTotal = items
-    .filter((item) => item.total > 0 && item.shareTotal === 0)
-    .reduce((sum, item) => sum + item.total, 0)
+  const unassignedTotal = items.reduce((sum, item) => {
+    const quantity = parseQuantity(item.quantity)
+    if (item.total <= 0 || quantity <= 0) {
+      return sum
+    }
+    const unassignedUnits = Math.max(quantity - item.shareTotal, 0)
+    return sum + (unassignedUnits / quantity) * item.total
+  }, 0)
   const receiptTotal = subtotal + taxAmount + tipAmount + feesAmount - discountAmount
   const remainingTotal = Math.max(
     receiptTotal - summaryRows.reduce((sum, row) => sum + row.grandTotal, 0),

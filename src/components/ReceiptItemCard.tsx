@@ -22,7 +22,7 @@ export default function ReceiptItemCard({
   const unitPrice = parseMoneyInput(item.price)
   const total = quantity * unitPrice
   const shareTotal = getShareTotal(item.shares)
-  const hasUnevenShares = Object.values(item.shares).some((count) => count !== 1)
+  const remaining = Math.max(quantity - shareTotal, 0)
 
   return (
     <article className="space-y-2 rounded bg-inset p-3">
@@ -71,8 +71,8 @@ export default function ReceiptItemCard({
           <div className="space-y-1">
             {participants.map((participant) => {
               const count = item.shares[participant] ?? 0
-              const amount =
-                count > 0 && shareTotal > 0 ? (count / shareTotal) * total : 0
+              const amount = count > 0 && quantity > 0 ? (count / quantity) * total : 0
+              const canIncrease = remaining > 0
 
               if (count <= 0) {
                 return (
@@ -80,10 +80,11 @@ export default function ReceiptItemCard({
                     key={`${item.id}-${participant}`}
                     type="button"
                     onClick={() => onSetShare(item.id, participant, 1)}
-                    className="flex w-full items-center justify-between rounded bg-surface px-3 py-2 text-left text-sm text-fg-secondary hover:bg-app"
+                    disabled={!canIncrease}
+                    className="flex w-full items-center justify-between rounded bg-surface px-3 py-2 text-left text-sm text-fg-secondary hover:bg-app disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-surface"
                   >
                     <span>{participant}</span>
-                    <span className="text-xs text-fg-muted">Add</span>
+                    <span className="text-xs text-fg-muted">{canIncrease ? 'Add' : 'Full'}</span>
                   </button>
                 )
               }
@@ -116,7 +117,8 @@ export default function ReceiptItemCard({
                     <button
                       type="button"
                       onClick={() => onSetShare(item.id, participant, count + 1)}
-                      className="flex h-8 w-8 items-center justify-center rounded text-base text-fg-secondary hover:bg-inset"
+                      disabled={!canIncrease}
+                      className="flex h-8 w-8 items-center justify-center rounded text-base text-fg-secondary hover:bg-inset disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                       aria-label={`More for ${participant}`}
                     >
                       +
@@ -137,13 +139,7 @@ export default function ReceiptItemCard({
       <div className="flex items-center justify-between text-sm text-fg-muted">
         <span>{formatMoney(total)}</span>
         <span>
-          {shareTotal > 0
-            ? hasUnevenShares
-              ? quantity > 1
-                ? `${shareTotal} of ${quantity}`
-                : `${shareTotal} share${shareTotal === 1 ? '' : 's'}`
-              : `${formatMoney(total / shareTotal)} each`
-            : 'Unassigned'}
+          {shareTotal > 0 ? `${shareTotal} of ${quantity}` : 'Unassigned'}
         </span>
       </div>
     </article>

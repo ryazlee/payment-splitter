@@ -41,15 +41,39 @@ export function getShareTotal(shares: Record<string, number>): number {
   return Object.values(shares).reduce((sum, count) => sum + count, 0)
 }
 
+/** Keep share counts from exceeding the item quantity (drops overflow from later entries). */
+export function clampSharesToQuantity(
+  shares: Record<string, number>,
+  quantity: number,
+): Record<string, number> {
+  const maxUnits = Math.max(1, Math.floor(quantity) || 1)
+  let remaining = maxUnits
+  const next: Record<string, number> = {}
+
+  for (const [name, count] of Object.entries(shares)) {
+    if (remaining <= 0) {
+      break
+    }
+    const capped = Math.min(Math.max(Math.floor(count), 0), remaining)
+    if (capped > 0) {
+      next[name] = capped
+      remaining -= capped
+    }
+  }
+
+  return next
+}
+
 export function createItem(overrides: Partial<ReceiptItem> = {}): ReceiptItem {
-  const { shares, ...rest } = overrides
+  const { shares, quantity = '1', ...rest } = overrides
+  const quantityValue = typeof quantity === 'string' && quantity ? quantity : '1'
   return {
     id: crypto.randomUUID(),
     name: '',
     price: '',
-    quantity: '1',
     ...rest,
-    shares: normalizeShares(shares),
+    quantity: quantityValue,
+    shares: clampSharesToQuantity(normalizeShares(shares), parseQuantity(quantityValue)),
   }
 }
 

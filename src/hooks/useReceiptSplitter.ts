@@ -4,8 +4,11 @@ import { createShareUrl, createSummaryLocation, encodeHashState, readHashState }
 import {
   createEmptyState,
   createItem,
+  clampSharesToQuantity,
+  getShareTotal,
   normalizeCurrencyInput,
   normalizeQuantityInput,
+  parseQuantity,
   parseReceiptText,
 } from '../utils/receipt'
 import { buildSummaryText, computeReceiptSummary } from '../utils/summary'
@@ -145,6 +148,14 @@ export function useReceiptSplitter() {
           return item
         }
 
+        if (field === 'quantity' && typeof nextValue === 'string') {
+          return {
+            ...item,
+            quantity: nextValue,
+            shares: clampSharesToQuantity(item.shares, parseQuantity(nextValue)),
+          }
+        }
+
         return {
           ...item,
           [field]: nextValue,
@@ -164,14 +175,17 @@ export function useReceiptSplitter() {
   }
 
   function setShare(itemId: string, participant: string, count: number) {
-    const nextCount = Math.min(Math.max(Math.floor(count), 0), 255)
-
     updateState((current) => ({
       ...current,
       items: current.items.map((item) => {
         if (item.id !== itemId) {
           return item
         }
+
+        const quantity = parseQuantity(item.quantity)
+        const othersTotal = getShareTotal(item.shares) - (item.shares[participant] ?? 0)
+        const maxForPerson = Math.max(0, quantity - othersTotal)
+        const nextCount = Math.min(Math.max(Math.floor(count), 0), maxForPerson)
 
         if (nextCount <= 0) {
           const shares = { ...item.shares }
