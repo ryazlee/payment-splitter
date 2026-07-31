@@ -46,7 +46,7 @@ export default function SplitterScreen() {
   } = useReceiptSplitter()
 
   return (
-    <main className="min-h-screen bg-gray-900 p-4 text-white">
+    <main className="min-h-screen bg-app p-4 text-fg">
       <div className="mx-auto max-w-md space-y-4">
         <AppHeader title="Receipt Splitter" />
 

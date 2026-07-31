@@ -21,12 +21,12 @@ export default function SummaryScreen() {
 
   if (!receiptState) {
     return (
-      <main className="min-h-screen bg-gray-900 p-4 text-white">
+      <main className="min-h-screen bg-app p-4 text-fg">
         <div className="mx-auto max-w-md space-y-4">
           <AppHeader title="Receipt split" />
-          <section className="space-y-3 rounded bg-gray-800 p-4 text-sm text-gray-300">
+          <section className="space-y-3 rounded-app border border-border bg-surface p-4 text-sm text-fg-secondary">
             <p>No receipt data found in this link.</p>
-            <Link to="/" className="inline-flex text-white underline decoration-gray-500 underline-offset-2">
+            <Link to="/" className="inline-flex text-fg underline decoration-border underline-offset-2">
               Open receipt splitter
             </Link>
           </section>
@@ -39,7 +39,7 @@ export default function SummaryScreen() {
   const editorUrl = createShareUrl(receiptState)
 
   return (
-    <main className="min-h-screen bg-gray-900 p-4 text-white">
+    <main className="min-h-screen bg-app p-4 text-fg">
       <div className="mx-auto max-w-md space-y-4">
         <AppHeader title={receiptState.title || 'Receipt split'} />
 
@@ -59,7 +59,7 @@ export default function SummaryScreen() {
         <div className="text-center">
           <a
             href={editorUrl}
-            className="text-sm text-gray-400 underline decoration-gray-600 underline-offset-2 hover:text-gray-300"
+            className="text-sm text-fg-muted underline decoration-border underline-offset-2 hover:text-fg-secondary"
           >
             Edit receipt
           </a>

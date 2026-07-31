@@ -43,9 +43,9 @@ export default function SummaryPanel({
   ]
 
   return (
-    <section className="space-y-3 rounded bg-gray-800 p-4">
+    <section className="space-y-3 rounded-app border border-border bg-surface p-4">
       {showVenmoLinks && normalizedPayerVenmo ? (
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-fg-muted">
           Tap a Venmo link below to pay @{normalizedPayerVenmo}.
         </p>
       ) : null}
@@ -53,8 +53,8 @@ export default function SummaryPanel({
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
         {summaryStats.map((stat) => (
           <div key={stat.label} className="flex min-w-[calc(50%-0.5rem)] flex-1 items-center justify-between gap-3">
-            <span className={stat.emphasize ? 'text-white' : 'text-gray-400'}>{stat.label}</span>
-            <span className={stat.emphasize ? 'text-white' : 'text-gray-300'}>{formatMoney(stat.value)}</span>
+            <span className={stat.emphasize ? 'text-fg' : 'text-fg-muted'}>{stat.label}</span>
+            <span className={stat.emphasize ? 'text-fg' : 'text-fg-secondary'}>{formatMoney(stat.value)}</span>
           </div>
         ))}
       </div>
@@ -69,17 +69,17 @@ export default function SummaryPanel({
                 : null
 
             return (
-              <article key={row.participant} className="rounded bg-gray-700 px-3 py-2.5">
+              <article key={row.participant} className="rounded bg-inset px-3 py-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-sm text-white">{row.participant}</span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-sm text-fg">{row.participant}</span>
+                    <span className="text-xs text-fg-muted">
                       {receiptTotal > 0 ? `${Math.round((row.grandTotal / receiptTotal) * 100)}%` : '0%'}
                     </span>
                   </div>
-                  <span className="text-sm font-medium text-white">{formatMoney(row.grandTotal)}</span>
+                  <span className="text-sm font-medium text-fg">{formatMoney(row.grandTotal)}</span>
                 </div>
-                <div className="mt-1.5 space-y-0.5 text-xs text-gray-400">
+                <div className="mt-1.5 space-y-0.5 text-xs text-fg-muted">
                   {row.assignedItems.length > 0 ? (
                     row.assignedItems.map((item) => (
                       <div key={`${row.participant}-${item.id}`} className="flex items-center justify-between gap-3">
@@ -120,7 +120,7 @@ export default function SummaryPanel({
                   {venmoUrl ? (
                     <a
                       href={venmoUrl}
-                      className="mt-1 inline-flex text-xs font-medium text-white underline decoration-gray-500 underline-offset-2"
+                      className="mt-1 inline-flex text-xs font-medium text-fg underline decoration-border underline-offset-2"
                     >
                       {buildVenmoPayLinkLabel(row.grandTotal, normalizedPayerVenmo)}
                     </a>
@@ -130,7 +130,7 @@ export default function SummaryPanel({
             )
           })
         ) : (
-          <p className="text-sm text-gray-400">Add people to generate a summary.</p>
+          <p className="text-sm text-fg-muted">Add people to generate a summary.</p>
         )}
       </div>
     </section>

@@ -5,6 +5,7 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#fafafa" />
     <meta name="description" content="A simple webapp to help you split the bill." />
     <meta property="og:title" content="Payment Splitter" />
     <meta property="og:description" content="A simple webapp to help you split the bill." />
@@ -19,6 +20,21 @@
     <meta name="twitter:description" content="A simple webapp to help you split the bill." />
     <meta name="twitter:image" content="https://ryazlee.github.io/payment-splitter/favicon.png" />
     <title>Payment Splitter</title>
+    <script>
+      try {
+        var saved = localStorage.getItem('payment-splitter-theme')
+        var dark =
+          saved === 'dark' ||
+          (saved !== 'light' &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches)
+        if (dark) {
+          document.documentElement.classList.add('theme-dark')
+          document
+            .querySelector('meta[name="theme-color"]')
+            ?.setAttribute('content', '#111827')
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

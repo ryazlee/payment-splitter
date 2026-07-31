@@ -13,15 +13,66 @@
 }
 
 :root {
-  color: #ffffff;
-  background: #111827;
+  --text: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --inset: #f3f4f6;
+  --border: #e5e7eb;
+  --accent: #111827;
+  --accent-contrast: #ffffff;
+  --danger: #dc2626;
+  --success: #059669;
+  --radius: 12px;
+  --touch-min: 44px;
+
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
 }
 
-* {
+html.theme-dark {
+  color-scheme: dark;
+  --text: #f9fafb;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  --bg: #111827;
+  --surface: #1f2937;
+  --inset: #374151;
+  --border: #374151;
+  --accent: #f3f4f6;
+  --accent-contrast: #111827;
+  --danger: #f87171;
+  --success: #34d399;
+}
+
+@theme inline {
+  --color-app: var(--bg);
+  --color-surface: var(--surface);
+  --color-inset: var(--inset);
+  --color-border: var(--border);
+  --color-fg: var(--text);
+  --color-fg-secondary: var(--text-secondary);
+  --color-fg-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --radius-app: var(--radius);
+}
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -32,8 +83,9 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: ui-sans-serif, system-ui, sans-serif;
-  background: #111827;
+  background: var(--bg);
+  color: var(--text);
+  overscroll-behavior-y: none;
 }
 
 button,
@@ -47,6 +99,32 @@ textarea {
 }
 
 ::selection {
-  background: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--text);
+}
+
+.theme-toggle {
+  flex-shrink: 0;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.section-label {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }

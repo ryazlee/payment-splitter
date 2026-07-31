@@ -46,22 +46,22 @@ export default function ReceiptOverviewPanel({
   onClearReceipt,
 }: ReceiptOverviewPanelProps) {
   return (
-    <section className="space-y-3 rounded bg-gray-800 p-4">
+    <section className="space-y-3 rounded-app border border-border bg-surface p-4">
       <input
         value={title}
         onChange={(event) => onTitleChange(event.target.value)}
-        className="w-full rounded bg-gray-700 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
+        className="w-full rounded bg-inset px-4 py-3 text-fg placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent"
         placeholder="Receipt name"
       />
 
-      <div className="text-sm text-gray-300">
+      <div className="text-sm text-fg-secondary">
         {formatMoney(receiptTotal)} total · {formatMoney(unassignedTotal)} unassigned · {formatMoney(remainingTotal)} open
       </div>
 
       <label className="block space-y-1">
-        <span className="text-sm text-gray-400">Your Venmo handle (for payment links)</span>
-        <div className="flex items-center rounded bg-gray-700 focus-within:ring-2 focus-within:ring-white">
-          <span className="pl-3 text-sm text-gray-500">@</span>
+        <span className="text-sm text-fg-muted">Your Venmo handle (for payment links)</span>
+        <div className="flex items-center rounded bg-inset focus-within:ring-2 focus-within:ring-accent">
+          <span className="pl-3 text-sm text-fg-muted">@</span>
           <input
             value={payerVenmo}
             onChange={(event) => onPayerVenmoChange(event.target.value)}
@@ -69,7 +69,7 @@ export default function ReceiptOverviewPanel({
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
-            className="w-full bg-transparent py-2 pr-3 pl-1 text-sm text-white placeholder-gray-500 focus:outline-none"
+            className="w-full bg-transparent py-2 pr-3 pl-1 text-sm text-fg placeholder:text-fg-muted focus:outline-none"
           />
         </div>
       </label>
@@ -87,37 +87,37 @@ export default function ReceiptOverviewPanel({
         <button
           type="button"
           onClick={onCopyShareLink}
-          className="rounded bg-white px-3 py-2 text-sm font-medium text-black hover:bg-gray-100"
+          className="rounded-[10px] bg-accent px-3 py-2 text-sm font-semibold text-accent-contrast hover:opacity-90"
         >
           Copy link
         </button>
         <button
           type="button"
           onClick={onClearReceipt}
-          className="rounded bg-gray-700 px-3 py-2 text-sm text-white hover:bg-gray-600"
+          className="rounded-[10px] border border-border bg-surface px-3 py-2 text-sm text-fg hover:bg-inset"
         >
           Reset
         </button>
         <button
           type="button"
           onClick={onCopySummary}
-          className="rounded bg-gray-700 px-3 py-2 text-sm text-white hover:bg-gray-600"
+          className="rounded-[10px] border border-border bg-surface px-3 py-2 text-sm text-fg hover:bg-inset"
         >
           Copy summary
         </button>
         <Link
           to={summaryLocation}
-          className="rounded bg-gray-700 px-3 py-2 text-center text-sm text-white hover:bg-gray-600"
+          className="rounded-[10px] border border-border bg-surface px-3 py-2 text-center text-sm text-fg hover:bg-inset"
         >
           Show summary
         </Link>
       </div>
 
       {participantCount > 0 ? (
-        <div className="text-sm text-gray-400">{participantCount} people in the split</div>
+        <div className="text-sm text-fg-muted">{participantCount} people in the split</div>
       ) : null}
 
-      {notice ? <p className="text-sm text-gray-300">{notice}</p> : null}
+      {notice ? <p className="text-sm text-fg-secondary">{notice}</p> : null}
     </section>
   )
 }

@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import SplitterScreen from './components/screens/SplitterScreen'
 import SummaryScreen from './components/screens/SummaryScreen'
+import { ThemeProvider } from './theme'
 
 function getRouterBasename(): string {
   const base = import.meta.env.BASE_URL
@@ -9,12 +10,14 @@ function getRouterBasename(): string {
 
 function App() {
   return (
-    <BrowserRouter basename={getRouterBasename()}>
-      <Routes>
-        <Route path="/" element={<SplitterScreen />} />
-        <Route path="/summary" element={<SummaryScreen />} />
-      </Routes>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter basename={getRouterBasename()}>
+        <Routes>
+          <Route path="/" element={<SplitterScreen />} />
+          <Route path="/summary" element={<SummaryScreen />} />
+        </Routes>
+      </BrowserRouter>
+    </ThemeProvider>
   )
 }
 

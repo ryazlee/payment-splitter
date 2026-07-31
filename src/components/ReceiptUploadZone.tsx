@@ -34,7 +34,7 @@ export default function ReceiptUploadZone({
         <img
           src={receiptPreviewUrl}
           alt="Uploaded receipt preview"
-          className="mx-auto max-h-48 w-full rounded bg-gray-900/40 object-contain"
+          className="mx-auto max-h-48 w-full rounded bg-app/40 object-contain"
         />
       ) : null}
 
@@ -43,7 +43,7 @@ export default function ReceiptUploadZone({
           type="button"
           onClick={() => galleryInputRef.current?.click()}
           disabled={isProcessing}
-          className="rounded bg-gray-700 px-3 py-2 text-sm text-white hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-[10px] border border-border bg-surface px-3 py-2 text-sm text-fg hover:bg-inset disabled:cursor-not-allowed disabled:opacity-60"
         >
           Upload photo
         </button>
@@ -51,7 +51,7 @@ export default function ReceiptUploadZone({
           type="button"
           onClick={() => cameraInputRef.current?.click()}
           disabled={isProcessing}
-          className="rounded bg-gray-700 px-3 py-2 text-sm text-white hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-[10px] border border-border bg-surface px-3 py-2 text-sm text-fg hover:bg-inset disabled:cursor-not-allowed disabled:opacity-60"
         >
           Take photo
         </button>
@@ -60,7 +60,7 @@ export default function ReceiptUploadZone({
             type="button"
             onClick={onRetry}
             disabled={isProcessing}
-            className="col-span-2 rounded bg-white px-3 py-2 text-sm font-medium text-black hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+            className="col-span-2 rounded-[10px] bg-accent px-3 py-2 text-sm font-semibold text-accent-contrast hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Scan again
           </button>
@@ -83,7 +83,7 @@ export default function ReceiptUploadZone({
         onChange={handleInputChange}
       />
 
-      <div className="text-sm text-gray-400">
+      <div className="text-sm text-fg-muted">
         OCR: {ocrStatus}
         {ocrProgress > 0 ? ` (${Math.round(ocrProgress * 100)}%)` : ''}
       </div>

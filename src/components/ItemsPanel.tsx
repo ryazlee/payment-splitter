@@ -19,8 +19,8 @@ export default function ItemsPanel({
   onToggleAssignee,
 }: ItemsPanelProps) {
   return (
-    <section className="space-y-3 rounded bg-gray-800 p-4">
-      <h2 className="text-sm text-gray-300">Items</h2>
+    <section className="space-y-3 rounded-app border border-border bg-surface p-4">
+      <h2 className="section-label">Items</h2>
 
       <div className="space-y-2">
         {items.map((item, index) => (
@@ -39,7 +39,7 @@ export default function ItemsPanel({
       <button
         type="button"
         onClick={onAddItem}
-        className="w-full rounded bg-gray-700 px-3 py-2 text-sm text-white hover:bg-gray-600"
+        className="w-full rounded-[10px] border border-border bg-surface px-3 py-2 text-sm text-fg hover:bg-inset"
       >
         Add item
       </button>

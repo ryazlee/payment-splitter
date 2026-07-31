@@ -14,7 +14,7 @@ export default function ParticipantsPanel({
   onRemoveParticipant,
 }: ParticipantsPanelProps) {
   return (
-    <section className="space-y-3 rounded bg-gray-800 p-4">
+    <section className="space-y-3 rounded-app border border-border bg-surface p-4">
       <div className="flex flex-wrap gap-2">
         {participants.length > 0 ? (
           participants.map((participant) => (
@@ -22,13 +22,13 @@ export default function ParticipantsPanel({
               key={participant}
               type="button"
               onClick={() => onRemoveParticipant(participant)}
-              className="rounded bg-gray-700 px-3 py-2 text-sm text-white hover:bg-gray-600"
+              className="rounded-[10px] border border-border bg-surface px-3 py-2 text-sm text-fg hover:bg-inset"
             >
               {participant}
             </button>
           ))
         ) : (
-          <p className="text-sm text-gray-400">Add the people sharing this receipt.</p>
+          <p className="text-sm text-fg-muted">Add the people sharing this receipt.</p>
         )}
       </div>
 
@@ -43,12 +43,12 @@ export default function ParticipantsPanel({
             }
           }}
           placeholder="Person name"
-          className="flex-1 rounded bg-gray-700 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
+          className="flex-1 rounded bg-inset px-3 py-2 text-sm text-fg placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent"
         />
         <button
           type="button"
           onClick={onAddParticipant}
-          className="rounded bg-white px-4 py-2 text-sm font-medium text-black hover:bg-gray-100"
+          className="rounded-[10px] bg-accent px-4 py-2 text-sm font-semibold text-accent-contrast hover:opacity-90"
         >
           Add
         </button>
