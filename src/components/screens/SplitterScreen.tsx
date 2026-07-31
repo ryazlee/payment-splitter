@@ -36,7 +36,7 @@ export default function SplitterScreen() {
     addItem,
     updateItem,
     removeItem,
-    toggleAssignee,
+    setShare,
     processReceiptFile,
     retryReceiptOcr,
     copyShareLink,
@@ -86,7 +86,7 @@ export default function SplitterScreen() {
           onAddItem={addItem}
           onUpdateItem={updateItem}
           onRemoveItem={removeItem}
-          onToggleAssignee={toggleAssignee}
+          onSetShare={setShare}
         />
 
         <ChargesPanel

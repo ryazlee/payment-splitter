@@ -1,6 +1,6 @@
 import type { ComputedReceiptItem, ReceiptState, SummaryRow } from '../types'
 import { createSummaryUrl } from './hashState'
-import { formatMoney, parseMoneyInput, parseQuantity } from './receipt'
+import { formatMoney, getShareTotal, parseMoneyInput, parseQuantity } from './receipt'
 import {
   buildVenmoPaymentNote,
   buildVenmoWebPayUrl,
@@ -21,6 +21,13 @@ export type ReceiptSummary = {
   summaryRows: SummaryRow[]
 }
 
+function amountForShare(total: number, shareCount: number, shareTotal: number): number {
+  if (shareCount <= 0 || shareTotal <= 0 || total <= 0) {
+    return 0
+  }
+  return (shareCount / shareTotal) * total
+}
+
 export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
   const participants = Array.from(
     new Set(state.participants.map((name) => name.trim()).filter(Boolean)),
@@ -28,14 +35,24 @@ export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
   const participantSet = new Set(participants)
   const items = state.items.map((item) => {
     const total = parseQuantity(item.quantity) * parseMoneyInput(item.price)
-    const assignees = item.assignees.filter((name) => participantSet.has(name))
-    const perPerson = assignees.length > 0 ? total / assignees.length : 0
+    const shares: Record<string, number> = {}
+    for (const [name, count] of Object.entries(item.shares)) {
+      if (participantSet.has(name) && count > 0) {
+        shares[name] = count
+      }
+    }
+    const shareTotal = getShareTotal(shares)
+    const amountByParticipant: Record<string, number> = {}
+    for (const [name, count] of Object.entries(shares)) {
+      amountByParticipant[name] = amountForShare(total, count, shareTotal)
+    }
 
     return {
       ...item,
       total,
-      assignees,
-      perPerson,
+      shares,
+      shareTotal,
+      amountByParticipant,
     }
   })
   const subtotal = items.reduce((sum, item) => sum + item.total, 0)
@@ -44,8 +61,15 @@ export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
   const feesAmount = parseMoneyInput(state.fees)
   const discountAmount = parseMoneyInput(state.discount)
   const summaryRows = participants.map((participant) => {
-    const assignedItems = items.filter((item) => item.assignees.includes(participant))
-    const itemsTotal = assignedItems.reduce((sum, item) => sum + item.perPerson, 0)
+    const assignedItems = items
+      .filter((item) => (item.shares[participant] ?? 0) > 0)
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        shareCount: item.shares[participant] ?? 0,
+        amount: item.amountByParticipant[participant] ?? 0,
+      }))
+    const itemsTotal = assignedItems.reduce((sum, item) => sum + item.amount, 0)
     const shareRatio = subtotal > 0 ? itemsTotal / subtotal : 0
     const taxShare = taxAmount * shareRatio
     const tipShare = tipAmount * shareRatio
@@ -65,7 +89,7 @@ export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
     }
   })
   const unassignedTotal = items
-    .filter((item) => item.total > 0 && item.assignees.length === 0)
+    .filter((item) => item.total > 0 && item.shareTotal === 0)
     .reduce((sum, item) => sum + item.total, 0)
   const receiptTotal = subtotal + taxAmount + tipAmount + feesAmount - discountAmount
   const remainingTotal = Math.max(
@@ -107,9 +131,10 @@ export function buildSummaryText(state: ReceiptState, summary: ReceiptSummary): 
     '',
     ...summary.summaryRows.flatMap((row) => {
       const itemLines = row.assignedItems.length
-        ? row.assignedItems.map(
-            (item) => `  - ${item.name || 'Untitled item'}: ${formatMoney(item.perPerson)}`,
-          )
+        ? row.assignedItems.map((item) => {
+            const qtyLabel = item.shareCount > 1 ? ` ×${item.shareCount}` : ''
+            return `  - ${item.name || 'Untitled item'}${qtyLabel}: ${formatMoney(item.amount)}`
+          })
         : ['  - No assigned items']
 
       const percentage =

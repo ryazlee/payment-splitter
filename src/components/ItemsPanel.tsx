@@ -5,9 +5,9 @@ type ItemsPanelProps = {
   items: ReceiptItem[]
   participants: string[]
   onAddItem: () => void
-  onUpdateItem: (itemId: string, field: keyof ReceiptItem, value: string | string[]) => void
+  onUpdateItem: (itemId: string, field: keyof ReceiptItem, value: string | Record<string, number>) => void
   onRemoveItem: (itemId: string) => void
-  onToggleAssignee: (itemId: string, participant: string) => void
+  onSetShare: (itemId: string, participant: string, count: number) => void
 }
 
 export default function ItemsPanel({
@@ -16,7 +16,7 @@ export default function ItemsPanel({
   onAddItem,
   onUpdateItem,
   onRemoveItem,
-  onToggleAssignee,
+  onSetShare,
 }: ItemsPanelProps) {
   return (
     <section className="space-y-3 rounded-app border border-border bg-surface p-4">
@@ -31,7 +31,7 @@ export default function ItemsPanel({
             participants={participants}
             onUpdateItem={onUpdateItem}
             onRemoveItem={onRemoveItem}
-            onToggleAssignee={onToggleAssignee}
+            onSetShare={onSetShare}
           />
         ))}
       </div>

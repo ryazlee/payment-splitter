@@ -83,8 +83,13 @@ export default function SummaryPanel({
                   {row.assignedItems.length > 0 ? (
                     row.assignedItems.map((item) => (
                       <div key={`${row.participant}-${item.id}`} className="flex items-center justify-between gap-3">
-                        <span className="truncate">{item.name || 'Untitled item'}</span>
-                        <span>{formatMoney(item.perPerson)}</span>
+                        <span className="truncate">
+                          {item.name || 'Untitled item'}
+                          {item.shareCount > 1 ? (
+                            <span className="text-fg-muted"> ×{item.shareCount}</span>
+                          ) : null}
+                        </span>
+                        <span>{formatMoney(item.amount)}</span>
                       </div>
                     ))
                   ) : (

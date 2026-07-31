@@ -8,14 +8,48 @@ const currency = new Intl.NumberFormat('en-US', {
 const MONTH_NAMES =
   'January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec'
 
+export function normalizeShares(shares: unknown): Record<string, number> {
+  if (!shares || typeof shares !== 'object' || Array.isArray(shares)) {
+    return {}
+  }
+
+  const next: Record<string, number> = {}
+  for (const [name, value] of Object.entries(shares as Record<string, unknown>)) {
+    if (!name.trim()) {
+      continue
+    }
+    const count = typeof value === 'number' ? value : Number(value)
+    if (!Number.isFinite(count) || count <= 0) {
+      continue
+    }
+    next[name] = Math.min(Math.floor(count), 255)
+  }
+  return next
+}
+
+export function sharesFromAssignees(assignees: string[]): Record<string, number> {
+  const next: Record<string, number> = {}
+  for (const name of assignees) {
+    if (name.trim()) {
+      next[name] = 1
+    }
+  }
+  return next
+}
+
+export function getShareTotal(shares: Record<string, number>): number {
+  return Object.values(shares).reduce((sum, count) => sum + count, 0)
+}
+
 export function createItem(overrides: Partial<ReceiptItem> = {}): ReceiptItem {
+  const { shares, ...rest } = overrides
   return {
     id: crypto.randomUUID(),
     name: '',
     price: '',
     quantity: '1',
-    assignees: [],
-    ...overrides,
+    ...rest,
+    shares: normalizeShares(shares),
   }
 }
 
@@ -512,15 +546,19 @@ export function normalizeState(input: unknown): ReceiptState | null {
   const candidate = input as Partial<ReceiptState>
   const items = Array.isArray(candidate.items)
     ? candidate.items.map((item) => {
-        const rawItem = item as Partial<ReceiptItem>
+        const rawItem = item as Partial<ReceiptItem> & { assignees?: unknown }
+        const fromShares = normalizeShares(rawItem.shares)
+        const fromAssignees = Array.isArray(rawItem.assignees)
+          ? sharesFromAssignees(
+              rawItem.assignees.filter((name): name is string => typeof name === 'string'),
+            )
+          : {}
         return createItem({
           id: typeof rawItem.id === 'string' && rawItem.id ? rawItem.id : crypto.randomUUID(),
           name: typeof rawItem.name === 'string' ? rawItem.name : '',
           price: typeof rawItem.price === 'string' ? rawItem.price : '',
           quantity: typeof rawItem.quantity === 'string' ? rawItem.quantity : '1',
-          assignees: Array.isArray(rawItem.assignees)
-            ? rawItem.assignees.filter((name): name is string => typeof name === 'string')
-            : [],
+          shares: Object.keys(fromShares).length > 0 ? fromShares : fromAssignees,
         })
       })
     : [createItem()]
@@ -566,7 +604,7 @@ function tryCommitPendingItem(
       name: pendingItem.name,
       price: pricing.unitPrice.toFixed(2),
       quantity: pricing.quantity.toString(),
-      assignees: participants,
+      shares: sharesFromAssignees(participants),
     }),
     pendingItem: null,
   }
@@ -646,7 +684,7 @@ export function parseReceiptText(text: string, participants: string[]): ParsedRe
             name,
             price: pricing.unitPrice.toFixed(2),
             quantity: pricing.quantity.toString(),
-            assignees: participants,
+            shares: sharesFromAssignees(participants),
           }),
         )
         pendingItem = null

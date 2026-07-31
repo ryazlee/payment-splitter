@@ -105,10 +105,17 @@ export function useReceiptSplitter() {
     updateState((current) => ({
       ...current,
       participants: current.participants.filter((participant) => participant !== name),
-      items: current.items.map((item) => ({
-        ...item,
-        assignees: item.assignees.filter((participant) => participant !== name),
-      })),
+      items: current.items.map((item) => {
+        if (!(name in item.shares)) {
+          return item
+        }
+        const shares = { ...item.shares }
+        delete shares[name]
+        return {
+          ...item,
+          shares,
+        }
+      }),
     }))
   }
 
@@ -119,7 +126,7 @@ export function useReceiptSplitter() {
     }))
   }
 
-  function updateItem(itemId: string, field: keyof ReceiptItem, value: string | string[]) {
+  function updateItem(itemId: string, field: keyof ReceiptItem, value: string | Record<string, number>) {
     let nextValue = value
     if (typeof value === 'string') {
       if (field === 'price') {
@@ -156,7 +163,9 @@ export function useReceiptSplitter() {
     }))
   }
 
-  function toggleAssignee(itemId: string, participant: string) {
+  function setShare(itemId: string, participant: string, count: number) {
+    const nextCount = Math.min(Math.max(Math.floor(count), 0), 255)
+
     updateState((current) => ({
       ...current,
       items: current.items.map((item) => {
@@ -164,12 +173,21 @@ export function useReceiptSplitter() {
           return item
         }
 
-        const isSelected = item.assignees.includes(participant)
+        if (nextCount <= 0) {
+          const shares = { ...item.shares }
+          delete shares[participant]
+          return {
+            ...item,
+            shares,
+          }
+        }
+
         return {
           ...item,
-          assignees: isSelected
-            ? item.assignees.filter((name) => name !== participant)
-            : [...item.assignees, participant],
+          shares: {
+            ...item.shares,
+            [participant]: nextCount,
+          },
         }
       }),
     }))
@@ -346,7 +364,7 @@ export function useReceiptSplitter() {
     addItem,
     updateItem,
     removeItem,
-    toggleAssignee,
+    setShare,
     processReceiptFile,
     retryReceiptOcr,
     copyShareLink,

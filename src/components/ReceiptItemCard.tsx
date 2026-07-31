@@ -1,13 +1,13 @@
 import type { ReceiptItem } from '../types'
-import { formatMoney, parseMoneyInput, parseQuantity } from '../utils/receipt'
+import { formatMoney, getShareTotal, parseMoneyInput, parseQuantity } from '../utils/receipt'
 
 type ReceiptItemCardProps = {
   index: number
   item: ReceiptItem
   participants: string[]
-  onUpdateItem: (itemId: string, field: keyof ReceiptItem, value: string | string[]) => void
+  onUpdateItem: (itemId: string, field: keyof ReceiptItem, value: string | Record<string, number>) => void
   onRemoveItem: (itemId: string) => void
-  onToggleAssignee: (itemId: string, participant: string) => void
+  onSetShare: (itemId: string, participant: string, count: number) => void
 }
 
 export default function ReceiptItemCard({
@@ -16,9 +16,13 @@ export default function ReceiptItemCard({
   participants,
   onUpdateItem,
   onRemoveItem,
-  onToggleAssignee,
+  onSetShare,
 }: ReceiptItemCardProps) {
-  const total = parseQuantity(item.quantity) * parseMoneyInput(item.price)
+  const quantity = parseQuantity(item.quantity)
+  const unitPrice = parseMoneyInput(item.price)
+  const total = quantity * unitPrice
+  const shareTotal = getShareTotal(item.shares)
+  const hasUnevenShares = Object.values(item.shares).some((count) => count !== 1)
 
   return (
     <article className="space-y-2 rounded bg-inset p-3">
@@ -59,34 +63,86 @@ export default function ReceiptItemCard({
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {participants.length > 0 ? (
-          participants.map((participant) => {
-            const selected = item.assignees.includes(participant)
-            return (
-              <button
-                key={`${item.id}-${participant}`}
-                type="button"
-                onClick={() => onToggleAssignee(item.id, participant)}
-                className={`rounded px-3 py-1.5 text-sm ${selected
-                    ? 'bg-accent text-accent-contrast'
-                    : 'bg-surface text-fg-secondary hover:bg-app'
-                  }`}
-              >
-                {participant}
-              </button>
-            )
-          })
-        ) : (
-          <p className="text-sm text-fg-muted">Add people to assign this item.</p>
-        )}
-      </div>
+      {participants.length > 0 ? (
+        <div className="space-y-1">
+          <p className="text-[11px] font-medium tracking-wide text-fg-muted uppercase">
+            Who got what
+          </p>
+          <div className="space-y-1">
+            {participants.map((participant) => {
+              const count = item.shares[participant] ?? 0
+              const amount =
+                count > 0 && shareTotal > 0 ? (count / shareTotal) * total : 0
+
+              if (count <= 0) {
+                return (
+                  <button
+                    key={`${item.id}-${participant}`}
+                    type="button"
+                    onClick={() => onSetShare(item.id, participant, 1)}
+                    className="flex w-full items-center justify-between rounded bg-surface px-3 py-2 text-left text-sm text-fg-secondary hover:bg-app"
+                  >
+                    <span>{participant}</span>
+                    <span className="text-xs text-fg-muted">Add</span>
+                  </button>
+                )
+              }
+
+              return (
+                <div
+                  key={`${item.id}-${participant}`}
+                  className="flex items-center gap-2 rounded bg-app px-2 py-1.5"
+                >
+                  <button
+                    type="button"
+                    onClick={() => onSetShare(item.id, participant, 0)}
+                    className="min-w-0 flex-1 truncate rounded px-1 py-1 text-left text-sm text-fg hover:text-fg-muted"
+                    title={`Remove ${participant}`}
+                  >
+                    {participant}
+                  </button>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => onSetShare(item.id, participant, count - 1)}
+                      className="flex h-8 w-8 items-center justify-center rounded text-base text-fg-secondary hover:bg-inset"
+                      aria-label={`Fewer for ${participant}`}
+                    >
+                      −
+                    </button>
+                    <span className="w-6 text-center text-sm font-medium tabular-nums text-fg">
+                      {count}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onSetShare(item.id, participant, count + 1)}
+                      className="flex h-8 w-8 items-center justify-center rounded text-base text-fg-secondary hover:bg-inset"
+                      aria-label={`More for ${participant}`}
+                    >
+                      +
+                    </button>
+                  </div>
+                  <span className="w-14 shrink-0 text-right text-xs tabular-nums text-fg-muted">
+                    {formatMoney(amount)}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-fg-muted">Add people to assign this item.</p>
+      )}
 
       <div className="flex items-center justify-between text-sm text-fg-muted">
         <span>{formatMoney(total)}</span>
         <span>
-          {item.assignees.length > 0
-            ? `${formatMoney(total / item.assignees.length)} each`
+          {shareTotal > 0
+            ? hasUnevenShares
+              ? quantity > 1
+                ? `${shareTotal} of ${quantity}`
+                : `${shareTotal} share${shareTotal === 1 ? '' : 's'}`
+              : `${formatMoney(total / shareTotal)} each`
             : 'Unassigned'}
         </span>
       </div>

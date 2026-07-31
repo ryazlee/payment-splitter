@@ -1,7 +1,7 @@
 import { deflateSync, inflateSync } from 'fflate'
 import { decompressFromEncodedURIComponent } from 'lz-string'
 import type { ReceiptItem, ReceiptState } from '../types'
-import { createItem, normalizeState } from './receipt'
+import { createItem, getShareTotal, normalizeState, sharesFromAssignees } from './receipt'
 
 /** Bare binary hashes (brief transitional format). */
 const BINARY_PREFIX = 'b'
@@ -15,6 +15,11 @@ const LEGACY_ITEM_SEPARATOR = '~'
 const LEGACY_ASSIGNEE_SEPARATOR = '|'
 const RECORD_SEP = '\u001e'
 const UNIT_SEP = '\u001f'
+
+/** Equal-split assignee bitmask format. */
+const BINARY_VERSION_V1 = 1
+/** Per-person share counts. */
+const BINARY_VERSION_V2 = 2
 
 // Alphanumeric only — no punctuation in the compact payload.
 const HASH_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
@@ -185,7 +190,7 @@ function packBinaryState(
   const participants = state.participants.map((name) => name.trim()).filter(Boolean)
   const participantIndex = new Map(participants.map((name, index) => [name, index]))
   const items = state.items.filter(
-    (item) => item.name || item.price || item.assignees.length > 0 || item.quantity !== '1',
+    (item) => item.name || item.price || getShareTotal(item.shares) > 0 || item.quantity !== '1',
   )
 
   const title =
@@ -204,7 +209,7 @@ function packBinaryState(
   if (discountCents > 0) flags |= 16
   if (venmo) flags |= 32
 
-  const out: number[] = [1, flags, participants.length]
+  const out: number[] = [BINARY_VERSION_V2, flags, participants.length]
   for (const participant of participants) {
     pushString(participant, out)
   }
@@ -221,14 +226,17 @@ function packBinaryState(
     const quantity = Math.min(Math.max(Number.parseInt(item.quantity, 10) || 1, 1), 255)
     out.push(quantity)
 
-    let mask = 0
-    for (const assignee of item.assignees) {
-      const index = participantIndex.get(assignee)
-      if (typeof index === 'number' && index < 16) {
-        mask |= 1 << index
+    const shareEntries = Object.entries(item.shares).filter(([name, count]) => {
+      return count > 0 && participantIndex.has(name)
+    })
+    out.push(Math.min(shareEntries.length, 255))
+    for (const [name, count] of shareEntries) {
+      const index = participantIndex.get(name)
+      if (typeof index !== 'number') {
+        continue
       }
+      out.push(index & 0xff, Math.min(Math.max(count, 1), 255))
     }
-    out.push(mask & 0xff, (mask >> 8) & 0xff)
   }
 
   if (flags & 2) pushVarint(taxCents, out)
@@ -240,8 +248,8 @@ function packBinaryState(
   return Uint8Array.from(out)
 }
 
-function unpackBinaryState(bytes: Uint8Array): ReceiptState | null {
-  if (bytes.length < 3 || bytes[0] !== 1) {
+function unpackBinaryStateV1(bytes: Uint8Array): ReceiptState | null {
+  if (bytes.length < 3) {
     return null
   }
 
@@ -305,11 +313,102 @@ function unpackBinaryState(bytes: Uint8Array): ReceiptState | null {
         name,
         price: priceCents > 0 ? centsToMoney(priceCents) : '',
         quantity: String(quantity || 1),
-        assignees,
+        shares: sharesFromAssignees(assignees),
       }),
     )
   }
 
+  return readChargesAndNormalize(bytes, offset, flags, title, participants, items)
+}
+
+function unpackBinaryStateV2(bytes: Uint8Array): ReceiptState | null {
+  if (bytes.length < 3) {
+    return null
+  }
+
+  const offset = { index: 1 }
+  const flags = bytes[offset.index]
+  offset.index += 1
+
+  const participantCount = bytes[offset.index]
+  offset.index += 1
+  const participants: string[] = []
+  for (let index = 0; index < participantCount; index += 1) {
+    const name = readString(bytes, offset)
+    if (name === null) {
+      return null
+    }
+    participants.push(name)
+  }
+
+  let title = 'Shared receipt'
+  if (flags & 1) {
+    const parsedTitle = readString(bytes, offset)
+    if (parsedTitle === null) {
+      return null
+    }
+    title = parsedTitle || title
+  }
+
+  if (offset.index >= bytes.length) {
+    return null
+  }
+
+  const itemCount = bytes[offset.index]
+  offset.index += 1
+  const items: ReceiptItem[] = []
+
+  for (let index = 0; index < itemCount; index += 1) {
+    const name = readString(bytes, offset)
+    const priceCents = readVarint(bytes, offset)
+    if (name === null || priceCents === null || offset.index >= bytes.length) {
+      return null
+    }
+
+    const quantity = bytes[offset.index]
+    offset.index += 1
+    if (offset.index >= bytes.length) {
+      return null
+    }
+
+    const shareEntryCount = bytes[offset.index]
+    offset.index += 1
+    if (offset.index + shareEntryCount * 2 > bytes.length) {
+      return null
+    }
+
+    const shares: Record<string, number> = {}
+    for (let entry = 0; entry < shareEntryCount; entry += 1) {
+      const participantIdx = bytes[offset.index]
+      const count = bytes[offset.index + 1]
+      offset.index += 2
+      const participant = participants[participantIdx]
+      if (participant && count > 0) {
+        shares[participant] = count
+      }
+    }
+
+    items.push(
+      createItem({
+        name,
+        price: priceCents > 0 ? centsToMoney(priceCents) : '',
+        quantity: String(quantity || 1),
+        shares,
+      }),
+    )
+  }
+
+  return readChargesAndNormalize(bytes, offset, flags, title, participants, items)
+}
+
+function readChargesAndNormalize(
+  bytes: Uint8Array,
+  offset: { index: number },
+  flags: number,
+  title: string,
+  participants: string[],
+  items: ReceiptItem[],
+): ReceiptState | null {
   let tax = ''
   let tip = ''
   let fees = ''
@@ -352,6 +451,22 @@ function unpackBinaryState(bytes: Uint8Array): ReceiptState | null {
     discount,
     payerVenmo,
   })
+}
+
+function unpackBinaryState(bytes: Uint8Array): ReceiptState | null {
+  if (bytes.length < 3) {
+    return null
+  }
+
+  const version = bytes[0]
+  if (version === BINARY_VERSION_V2) {
+    return unpackBinaryStateV2(bytes)
+  }
+  if (version === BINARY_VERSION_V1) {
+    return unpackBinaryStateV1(bytes)
+  }
+
+  return null
 }
 
 function chooseSmallestPayload(bytes: Uint8Array): string {
@@ -397,7 +512,7 @@ function decodeBinaryPayload(encoded: string): ReceiptState | null {
   return null
 }
 
-type CompactItem = [string, string, string?, string[]?]
+type CompactItem = [string, string, string?, Array<string | number>?]
 type CompactState = {
   t?: string
   p?: string[]
@@ -407,6 +522,32 @@ type CompactState = {
   f?: string
   d?: string
   v?: string
+}
+
+function sharesFromCompactAssignees(assignees: Array<string | number> | unknown): Record<string, number> {
+  if (!Array.isArray(assignees)) {
+    return {}
+  }
+
+  // Newer compact: ["Alice", 1, "Bob", 3]
+  if (assignees.some((value) => typeof value === 'number')) {
+    const shares: Record<string, number> = {}
+    for (let index = 0; index < assignees.length; index += 2) {
+      const name = assignees[index]
+      const count = assignees[index + 1]
+      if (typeof name === 'string' && name.trim()) {
+        const parsed = typeof count === 'number' ? count : 1
+        if (Number.isFinite(parsed) && parsed > 0) {
+          shares[name] = Math.min(Math.floor(parsed), 255)
+        }
+      }
+    }
+    return shares
+  }
+
+  return sharesFromAssignees(
+    assignees.filter((value): value is string => typeof value === 'string'),
+  )
 }
 
 function fromCompactState(compact: CompactState): ReceiptState | null {
@@ -419,9 +560,7 @@ function fromCompactState(compact: CompactState): ReceiptState | null {
           name: typeof name === 'string' ? name : '',
           price: typeof price === 'string' ? price : '',
           quantity: typeof quantity === 'string' && quantity ? quantity : '1',
-          assignees: Array.isArray(assignees)
-            ? assignees.filter((value): value is string => typeof value === 'string')
-            : [],
+          shares: sharesFromCompactAssignees(assignees),
         })
       })
     : []
@@ -445,18 +584,46 @@ function encodeIndexedItem(params: URLSearchParams, item: ReceiptItem, index: nu
   if (item.name) params.set(`${itemKey}n`, item.name)
   if (item.price) params.set(`${itemKey}p`, item.price)
   if (item.quantity && item.quantity !== '1') params.set(`${itemKey}q`, item.quantity)
-  for (const assignee of item.assignees.filter(Boolean)) {
-    params.append(`${itemKey}a`, assignee)
+  for (const [assignee, count] of Object.entries(item.shares)) {
+    if (!assignee || count <= 0) {
+      continue
+    }
+    params.append(`${itemKey}a`, count === 1 ? assignee : `${assignee}:${count}`)
   }
+}
+
+function decodeAssigneeShare(value: string): { name: string; count: number } | null {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  const separator = trimmed.lastIndexOf(':')
+  if (separator > 0) {
+    const name = trimmed.slice(0, separator)
+    const count = Number.parseInt(trimmed.slice(separator + 1), 10)
+    if (name && Number.isFinite(count) && count > 0) {
+      return { name, count: Math.min(count, 255) }
+    }
+  }
+
+  return { name: trimmed, count: 1 }
 }
 
 function decodeLegacyItem(value: string): ReceiptItem {
   const [name = '', price = '', quantity = '1', assignees = ''] = value.split(LEGACY_ITEM_SEPARATOR)
+  const shares: Record<string, number> = {}
+  for (const entry of assignees ? assignees.split(LEGACY_ASSIGNEE_SEPARATOR).filter(Boolean) : []) {
+    const parsed = decodeAssigneeShare(entry)
+    if (parsed) {
+      shares[parsed.name] = parsed.count
+    }
+  }
   return createItem({
     name,
     price,
     quantity,
-    assignees: assignees ? assignees.split(LEGACY_ASSIGNEE_SEPARATOR).filter(Boolean) : [],
+    shares,
   })
 }
 
@@ -480,11 +647,18 @@ function decodeLegacyParams(raw: string): ReceiptState | null {
 
   const indexedItems = indexes.map((index) => {
     const prefix = `i${index}`
+    const shares: Record<string, number> = {}
+    for (const entry of params.getAll(`${prefix}a`).filter(Boolean)) {
+      const parsed = decodeAssigneeShare(entry)
+      if (parsed) {
+        shares[parsed.name] = parsed.count
+      }
+    }
     return createItem({
       name: params.get(`${prefix}n`) ?? '',
       price: params.get(`${prefix}p`) ?? '',
       quantity: params.get(`${prefix}q`) ?? '1',
-      assignees: params.getAll(`${prefix}a`).filter(Boolean),
+      shares,
     })
   })
   const legacyItems = params.getAll('item').map(decodeLegacyItem)
@@ -517,17 +691,22 @@ function decodeDenseTextPayload(payload: string): ReceiptState | null {
   const items = itemsRaw
     ? itemsRaw.split('\n').filter(Boolean).map((line) => {
         const [name = '', price = '', quantity = '', assigneeIndexes = ''] = line.split(UNIT_SEP)
-        const assignees = assigneeIndexes
-          ? assigneeIndexes
-              .split(',')
-              .map((value) => participants[Number(value)])
-              .filter((value): value is string => Boolean(value))
-          : []
+        const shares: Record<string, number> = {}
+        if (assigneeIndexes) {
+          for (const entry of assigneeIndexes.split(',')) {
+            const [indexRaw, countRaw] = entry.split('x')
+            const participant = participants[Number(indexRaw)]
+            const count = countRaw ? Number.parseInt(countRaw, 10) : 1
+            if (participant && Number.isFinite(count) && count > 0) {
+              shares[participant] = Math.min(count, 255)
+            }
+          }
+        }
         return createItem({
           name,
           price,
           quantity: quantity || '1',
-          assignees,
+          shares,
         })
       })
     : []
@@ -698,7 +877,7 @@ function encodeLegacyHashState(state: ReceiptState): string {
     params.append('person', participant)
   }
   for (const [index, item] of state.items.entries()) {
-    if (item.name || item.price || item.assignees.length > 0 || item.quantity !== '1') {
+    if (item.name || item.price || getShareTotal(item.shares) > 0 || item.quantity !== '1') {
       encodeIndexedItem(params, item, index)
     }
   }
@@ -715,7 +894,7 @@ function isEmptyState(state: ReceiptState): boolean {
     (!state.title || state.title === 'Shared receipt')
     && state.participants.every((name) => !name.trim())
     && state.items.every(
-      (item) => !item.name && !item.price && item.quantity === '1' && item.assignees.length === 0,
+      (item) => !item.name && !item.price && item.quantity === '1' && getShareTotal(item.shares) === 0,
     )
     && !state.tax
     && !state.tip
