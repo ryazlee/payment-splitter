@@ -15,8 +15,9 @@ function RouteAnalytics() {
 
   useEffect(() => {
     // Use the real browser path so GitHub Pages base (/payment-splitter/) is included.
+    // Ignore hash — receipt state changes constantly and would flood GoatCounter.
     trackPageview()
-  }, [location.pathname, location.search, location.hash])
+  }, [location.pathname, location.search])
 
   return null
 }

@@ -9,7 +9,8 @@ declare global {
 }
 
 function getPagePath(): string {
-  return `${window.location.pathname}${window.location.search}${window.location.hash}`
+  // Receipt state lives in the hash — exclude it so edits don't create unique paths.
+  return `${window.location.pathname}${window.location.search}`
 }
 
 /** Record a page view (needed for React Router navigations). */
