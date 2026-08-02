@@ -114,7 +114,7 @@ export function sharesForQuantityChange(
       .filter(([, count]) => count > 0)
       .map(([name]) => name)
       .filter((name) => participants.includes(name))
-    return equalSharesForParticipants(included.length > 0 ? included : participants)
+    return equalSharesForParticipants(included)
   }
 
   return clampSharesToQuantity(item.shares, nextQuantity)

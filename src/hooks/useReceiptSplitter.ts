@@ -98,26 +98,10 @@ export function useReceiptSplitter() {
       return
     }
 
-    updateState((current) => {
-      const participants = [...current.participants, nextName]
-
-      return {
-        ...current,
-        participants,
-        // Qty-1 lines auto-include new people in the equal split.
-        items: current.items.map((item) =>
-          isEqualSplitItem(item)
-            ? {
-                ...item,
-                shares: {
-                  ...item.shares,
-                  [nextName]: 1,
-                },
-              }
-            : item,
-        ),
-      }
-    })
+    updateState((current) => ({
+      ...current,
+      participants: [...current.participants, nextName],
+    }))
     setPersonDraft('')
     setNotice('')
   }
@@ -317,16 +301,7 @@ export function useReceiptSplitter() {
             tip: parsedReceipt.tip || current.tip,
             fees: parsedReceipt.fees || current.fees,
             discount: parsedReceipt.discount || current.discount,
-            items: merged.map((item) =>
-              isEqualSplitItem(item) &&
-              current.participants.length > 0 &&
-              getShareTotal(item.shares) === 0
-                ? {
-                    ...item,
-                    shares: equalSharesForParticipants(current.participants),
-                  }
-                : item,
-            ),
+            items: merged,
           }
         })
       })

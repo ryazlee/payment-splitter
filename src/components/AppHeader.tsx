@@ -7,7 +7,7 @@ type AppHeaderProps = {
 
 export default function AppHeader({
   title,
-  subtitle = 'Split the bill without the spreadsheet.',
+  subtitle = 'Split the bill without the spreadsheet or an app.',
 }: AppHeaderProps) {
   return (
     <header className="app-header">
