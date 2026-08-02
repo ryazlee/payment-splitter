@@ -79,13 +79,66 @@ export function createItem(overrides: Partial<ReceiptItem> = {}): ReceiptItem {
   }
 }
 
-/** True when the receipt should use equal-split instead of per-unit assignment. */
+/** A line counts once the user has entered a name or price. */
+export function isActiveItem(item: ReceiptItem): boolean {
+  return Boolean(item.name.trim() || item.price.trim())
+}
+
+/**
+ * Equal-split when there is at most one filled line item.
+ * Blank placeholder rows do not flip the form into assign mode.
+ */
 export function isEqualSplitReceipt(items: ReceiptItem[]): boolean {
-  return items.length <= 1
+  return items.filter(isActiveItem).length <= 1
 }
 
 export function equalSharesForParticipants(participants: string[]): Record<string, number> {
   return sharesFromAssignees(participants)
+}
+
+/** Index of the filled item to equal-split, or the first row when none are filled yet. */
+export function equalSplitItemIndex(items: ReceiptItem[]): number {
+  const activeIndex = items.findIndex(isActiveItem)
+  return activeIndex >= 0 ? activeIndex : 0
+}
+
+/**
+ * Reconcile shares when the form gains/loses filled items.
+ * Entering equal-split includes everyone on the single active line;
+ * leaving equal-split clamps shares back to unit quantities.
+ */
+export function reconcileItemsForSplitMode(
+  previousItems: ReceiptItem[],
+  nextItems: ReceiptItem[],
+  participants: string[],
+): ReceiptItem[] {
+  const wasEqual = isEqualSplitReceipt(previousItems)
+  const nowEqual = isEqualSplitReceipt(nextItems)
+
+  if (wasEqual && !nowEqual) {
+    return nextItems.map((item) => ({
+      ...item,
+      shares: clampSharesToQuantity(item.shares, parseQuantity(item.quantity)),
+    }))
+  }
+
+  if (!wasEqual && nowEqual) {
+    const targetIndex = equalSplitItemIndex(nextItems)
+    return nextItems.map((item, index) => ({
+      ...item,
+      shares:
+        index === targetIndex ? equalSharesForParticipants(participants) : {},
+    }))
+  }
+
+  if (nowEqual) {
+    const targetIndex = equalSplitItemIndex(nextItems)
+    return nextItems.map((item, index) =>
+      index === targetIndex ? item : { ...item, shares: {} },
+    )
+  }
+
+  return nextItems
 }
 
 export function createEmptyState(): ReceiptState {

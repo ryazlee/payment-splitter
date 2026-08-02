@@ -1,6 +1,12 @@
 import type { ComputedReceiptItem, ReceiptState, SummaryRow } from '../types'
 import { createSummaryUrl } from './hashState'
-import { formatMoney, getShareTotal, parseMoneyInput, parseQuantity } from './receipt'
+import {
+  formatMoney,
+  getShareTotal,
+  isEqualSplitReceipt,
+  parseMoneyInput,
+  parseQuantity,
+} from './receipt'
 import {
   buildVenmoPaymentNote,
   buildVenmoWebPayUrl,
@@ -37,7 +43,7 @@ export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
     new Set(state.participants.map((name) => name.trim()).filter(Boolean)),
   )
   const participantSet = new Set(participants)
-  const equalSplit = state.items.length <= 1
+  const equalSplit = isEqualSplitReceipt(state.items)
   const items = state.items.map((item) => {
     const quantity = parseQuantity(item.quantity)
     const total = quantity * parseMoneyInput(item.price)

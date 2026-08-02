@@ -6,12 +6,14 @@ import {
   createItem,
   clampSharesToQuantity,
   equalSharesForParticipants,
+  equalSplitItemIndex,
   getShareTotal,
   isEqualSplitReceipt,
   normalizeCurrencyInput,
   normalizeQuantityInput,
   parseQuantity,
   parseReceiptText,
+  reconcileItemsForSplitMode,
 } from '../utils/receipt'
 import { buildSummaryText, computeReceiptSummary } from '../utils/summary'
 import { normalizeVenmoHandle } from '../utils/venmo'
@@ -101,19 +103,24 @@ export function useReceiptSplitter() {
     updateState((current) => {
       const participants = [...current.participants, nextName]
       const equalSplit = isEqualSplitReceipt(current.items)
+      const targetIndex = equalSplitItemIndex(current.items)
 
       return {
         ...current,
         participants,
-        // Single-item receipts auto-include new people in the equal split.
+        // Single filled item: auto-include new people in the equal split.
         items: equalSplit
-          ? current.items.map((item) => ({
-              ...item,
-              shares: {
-                ...item.shares,
-                [nextName]: 1,
-              },
-            }))
+          ? current.items.map((item, index) =>
+              index === targetIndex
+                ? {
+                    ...item,
+                    shares: {
+                      ...item.shares,
+                      [nextName]: 1,
+                    },
+                  }
+                : item,
+            )
           : current.items,
       }
     })
@@ -140,24 +147,14 @@ export function useReceiptSplitter() {
   }
 
   function addItem() {
-    updateState((current) => {
-      const nextItems = [...current.items, createItem()]
-      // Leaving equal-split mode: clamp existing shares back to unit quantities.
-      if (current.items.length === 1) {
-        return {
-          ...current,
-          items: nextItems.map((item) => ({
-            ...item,
-            shares: clampSharesToQuantity(item.shares, parseQuantity(item.quantity)),
-          })),
-        }
-      }
-
-      return {
-        ...current,
-        items: nextItems,
-      }
-    })
+    updateState((current) => ({
+      ...current,
+      items: reconcileItemsForSplitMode(
+        current.items,
+        [...current.items, createItem()],
+        current.participants,
+      ),
+    }))
   }
 
   function updateItem(itemId: string, field: keyof ReceiptItem, value: string | Record<string, number>) {
@@ -173,31 +170,31 @@ export function useReceiptSplitter() {
     }
 
     updateState((current) => {
-      const equalSplit = isEqualSplitReceipt(current.items)
+      const drafted = current.items.map((item) => {
+        if (item.id !== itemId) {
+          return item
+        }
+
+        if (field === 'quantity' && typeof nextValue === 'string') {
+          const equalSplit = isEqualSplitReceipt(current.items)
+          return {
+            ...item,
+            quantity: nextValue,
+            shares: equalSplit
+              ? item.shares
+              : clampSharesToQuantity(item.shares, parseQuantity(nextValue)),
+          }
+        }
+
+        return {
+          ...item,
+          [field]: nextValue,
+        }
+      })
 
       return {
         ...current,
-        items: current.items.map((item) => {
-          if (item.id !== itemId) {
-            return item
-          }
-
-          if (field === 'quantity' && typeof nextValue === 'string') {
-            return {
-              ...item,
-              quantity: nextValue,
-              // Only clamp in assign mode — equal-split parts aren't units.
-              shares: equalSplit
-                ? item.shares
-                : clampSharesToQuantity(item.shares, parseQuantity(nextValue)),
-            }
-          }
-
-          return {
-            ...item,
-            [field]: nextValue,
-          }
-        }),
+        items: reconcileItemsForSplitMode(current.items, drafted, current.participants),
       }
     })
   }
@@ -211,23 +208,13 @@ export function useReceiptSplitter() {
         }
       }
 
-      const nextItems = current.items.filter((item) => item.id !== itemId)
-      // Back to a single item: switch to equal-split among everyone.
-      if (nextItems.length === 1) {
-        return {
-          ...current,
-          items: [
-            {
-              ...nextItems[0],
-              shares: equalSharesForParticipants(current.participants),
-            },
-          ],
-        }
-      }
-
       return {
         ...current,
-        items: nextItems,
+        items: reconcileItemsForSplitMode(
+          current.items,
+          current.items.filter((item) => item.id !== itemId),
+          current.participants,
+        ),
       }
     })
   }
@@ -351,24 +338,6 @@ export function useReceiptSplitter() {
               ? [...kept, ...parsedReceipt.items]
               : current.items
 
-          const items =
-            merged.length === 1 && current.participants.length > 0
-              ? [
-                  {
-                    ...merged[0],
-                    shares: equalSharesForParticipants(current.participants),
-                  },
-                ]
-              : merged.length > 1
-                ? merged.map((item) => ({
-                    ...item,
-                    shares: clampSharesToQuantity(
-                      item.shares,
-                      parseQuantity(item.quantity),
-                    ),
-                  }))
-                : merged
-
           return {
             ...current,
             title:
@@ -379,7 +348,11 @@ export function useReceiptSplitter() {
             tip: parsedReceipt.tip || current.tip,
             fees: parsedReceipt.fees || current.fees,
             discount: parsedReceipt.discount || current.discount,
-            items,
+            items: reconcileItemsForSplitMode(
+              current.items,
+              merged,
+              current.participants,
+            ),
           }
         })
       })
