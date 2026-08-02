@@ -3,7 +3,7 @@ import { createSummaryUrl } from './hashState'
 import {
   formatMoney,
   getShareTotal,
-  isEqualSplitReceipt,
+  isEqualSplitItem,
   parseMoneyInput,
   parseQuantity,
 } from './receipt'
@@ -43,7 +43,6 @@ export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
     new Set(state.participants.map((name) => name.trim()).filter(Boolean)),
   )
   const participantSet = new Set(participants)
-  const equalSplit = isEqualSplitReceipt(state.items)
   const items = state.items.map((item) => {
     const quantity = parseQuantity(item.quantity)
     const total = quantity * parseMoneyInput(item.price)
@@ -54,7 +53,8 @@ export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
       }
     }
     const shareTotal = getShareTotal(shares)
-    // Equal-split: parts / number of parts. Assign mode: units / item quantity.
+    const equalSplit = isEqualSplitItem(item)
+    // Qty 1: divide by number of included people. Qty > 1: divide by unit quantity.
     const divisor = equalSplit ? shareTotal : quantity
     const amountByParticipant: Record<string, number> = {}
     for (const [name, count] of Object.entries(shares)) {
@@ -106,7 +106,7 @@ export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
     if (item.total <= 0) {
       return sum
     }
-    if (equalSplit) {
+    if (isEqualSplitItem(item)) {
       return item.shareTotal > 0 ? sum : sum + item.total
     }
     const quantity = parseQuantity(item.quantity)

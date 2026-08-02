@@ -1,14 +1,17 @@
 import type { ReceiptItem } from '../types'
-import { formatMoney, getShareTotal, parseMoneyInput, parseQuantity } from '../utils/receipt'
+import {
+  formatMoney,
+  getShareTotal,
+  isEqualSplitItem,
+  parseMoneyInput,
+  parseQuantity,
+} from '../utils/receipt'
 import Button from './Button'
-
-type ShareMode = 'equal' | 'assign' | 'none'
 
 type ReceiptItemCardProps = {
   index: number
   item: ReceiptItem
   participants: string[]
-  shareMode: ShareMode
   onUpdateItem: (itemId: string, field: keyof ReceiptItem, value: string | Record<string, number>) => void
   onRemoveItem: (itemId: string) => void
   onSetShare: (itemId: string, participant: string, count: number) => void
@@ -19,7 +22,6 @@ export default function ReceiptItemCard({
   index,
   item,
   participants,
-  shareMode,
   onUpdateItem,
   onRemoveItem,
   onSetShare,
@@ -30,8 +32,9 @@ export default function ReceiptItemCard({
   const total = quantity * unitPrice
   const shareTotal = getShareTotal(item.shares)
   const remaining = Math.max(quantity - shareTotal, 0)
+  const equalSplit = isEqualSplitItem(item)
   const splitCount = Object.values(item.shares).filter((count) => count > 0).length
-  const equalAmount = shareMode === 'equal' && splitCount > 0 && total > 0 ? total / splitCount : 0
+  const equalAmount = equalSplit && splitCount > 0 && total > 0 ? total / splitCount : 0
   const everyoneIncluded =
     participants.length > 0 && participants.every((name) => (item.shares[name] ?? 0) > 0)
 
@@ -73,8 +76,8 @@ export default function ReceiptItemCard({
         />
       </div>
 
-      {shareMode === 'none' ? null : participants.length > 0 ? (
-        shareMode === 'equal' ? (
+      {participants.length > 0 ? (
+        equalSplit ? (
           <div className="stack stack--tight">
             <div className="item-card__split-header">
               <p className="section-label">Split equally</p>
@@ -172,24 +175,20 @@ export default function ReceiptItemCard({
         )
       ) : (
         <p className="empty-hint">
-          {shareMode === 'equal'
-            ? 'Add people to split this equally.'
-            : 'Add people to assign this item.'}
+          {equalSplit ? 'Add people to split this equally.' : 'Add people to assign this item.'}
         </p>
       )}
 
       <div className="item-card__footer">
         <span>{formatMoney(total)}</span>
         <span>
-          {shareMode === 'equal'
+          {equalSplit
             ? splitCount > 0
               ? `${formatMoney(equalAmount)} each · ${splitCount} splitting`
               : 'Unassigned'
-            : shareMode === 'assign'
-              ? shareTotal > 0
-                ? `${shareTotal} of ${quantity}`
-                : 'Unassigned'
-              : 'Add a name or price to include this item'}
+            : shareTotal > 0
+              ? `${shareTotal} of ${quantity}`
+              : 'Unassigned'}
         </span>
       </div>
     </article>

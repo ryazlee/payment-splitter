@@ -73,72 +73,51 @@ export function createItem(overrides: Partial<ReceiptItem> = {}): ReceiptItem {
     price: '',
     ...rest,
     quantity: quantityValue,
-    // Do not clamp to quantity here — equal-split (single item) can have
-    // more share parts than quantity (e.g. 3 people each with 1 on qty 1).
+    // Do not clamp to quantity here — qty 1 equal-split can have more
+    // share parts than quantity (e.g. 3 people each with 1 on qty 1).
     shares: normalizeShares(shares),
   }
 }
 
-/** A line counts once the user has entered a name or price. */
-export function isActiveItem(item: ReceiptItem): boolean {
-  return Boolean(item.name.trim() || item.price.trim())
-}
-
-/**
- * Equal-split when there is at most one filled line item.
- * Blank placeholder rows do not flip the form into assign mode.
- */
-export function isEqualSplitReceipt(items: ReceiptItem[]): boolean {
-  return items.filter(isActiveItem).length <= 1
+/** Qty of 1 → equal-split among included people; qty > 1 → assign units. */
+export function isEqualSplitItem(item: Pick<ReceiptItem, 'quantity'>): boolean {
+  return parseQuantity(item.quantity) <= 1
 }
 
 export function equalSharesForParticipants(participants: string[]): Record<string, number> {
   return sharesFromAssignees(participants)
 }
 
-/** Index of the filled item to equal-split, or the first row when none are filled yet. */
-export function equalSplitItemIndex(items: ReceiptItem[]): number {
-  const activeIndex = items.findIndex(isActiveItem)
-  return activeIndex >= 0 ? activeIndex : 0
-}
-
 /**
- * Reconcile shares when the form gains/loses filled items.
- * Entering equal-split includes everyone on the single active line;
- * leaving equal-split clamps shares back to unit quantities.
+ * When qty flips between 1 and >1, convert shares to the matching mode.
+ * Dropping to 1 equal-splits among people who already had a share (or everyone).
+ * Raising above 1 clamps shares back to unit counts.
  */
-export function reconcileItemsForSplitMode(
-  previousItems: ReceiptItem[],
-  nextItems: ReceiptItem[],
+export function sharesForQuantityChange(
+  item: ReceiptItem,
+  nextQuantityValue: string,
   participants: string[],
-): ReceiptItem[] {
-  const wasEqual = isEqualSplitReceipt(previousItems)
-  const nowEqual = isEqualSplitReceipt(nextItems)
+): Record<string, number> {
+  const previousQuantity = parseQuantity(item.quantity)
+  const nextQuantity = parseQuantity(nextQuantityValue)
+  const wasEqual = previousQuantity <= 1
+  const nowEqual = nextQuantity <= 1
 
-  if (wasEqual && !nowEqual) {
-    return nextItems.map((item) => ({
-      ...item,
-      shares: clampSharesToQuantity(item.shares, parseQuantity(item.quantity)),
-    }))
-  }
-
-  if (!wasEqual && nowEqual) {
-    const targetIndex = equalSplitItemIndex(nextItems)
-    return nextItems.map((item, index) => ({
-      ...item,
-      shares:
-        index === targetIndex ? equalSharesForParticipants(participants) : {},
-    }))
+  if (wasEqual === nowEqual) {
+    return nowEqual
+      ? item.shares
+      : clampSharesToQuantity(item.shares, nextQuantity)
   }
 
   if (nowEqual) {
-    const targetIndex = equalSplitItemIndex(nextItems)
-    return nextItems.map((item, index) =>
-      index === targetIndex ? item : { ...item, shares: {} },
-    )
+    const included = Object.entries(item.shares)
+      .filter(([, count]) => count > 0)
+      .map(([name]) => name)
+      .filter((name) => participants.includes(name))
+    return equalSharesForParticipants(included.length > 0 ? included : participants)
   }
 
-  return nextItems
+  return clampSharesToQuantity(item.shares, nextQuantity)
 }
 
 export function createEmptyState(): ReceiptState {

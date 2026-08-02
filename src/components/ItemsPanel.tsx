@@ -2,7 +2,6 @@ import ReceiptItemCard from './ReceiptItemCard'
 import Button from './Button'
 import SectionCard from './SectionCard'
 import type { ReceiptItem } from '../types'
-import { equalSplitItemIndex, isEqualSplitReceipt } from '../utils/receipt'
 
 type ItemsPanelProps = {
   items: ReceiptItem[]
@@ -23,17 +22,10 @@ export default function ItemsPanel({
   onSetShare,
   onSplitEqually,
 }: ItemsPanelProps) {
-  const equalSplit = isEqualSplitReceipt(items)
-  const splitTargetIndex = equalSplit ? equalSplitItemIndex(items) : -1
-
   return (
     <SectionCard
       title="Items"
-      subtitle={
-        equalSplit
-          ? 'One filled item — split it equally. Add another item to assign shares per person.'
-          : 'Assign shares to the people who ordered each item.'
-      }
+      subtitle="Qty 1 splits equally. Qty 2+ assigns how many each person got."
     >
       <div className="stack">
         <div className="stack stack--tight">
@@ -43,13 +35,6 @@ export default function ItemsPanel({
               index={index}
               item={item}
               participants={participants}
-              shareMode={
-                equalSplit
-                  ? index === splitTargetIndex
-                    ? 'equal'
-                    : 'none'
-                  : 'assign'
-              }
               onUpdateItem={onUpdateItem}
               onRemoveItem={onRemoveItem}
               onSetShare={onSetShare}

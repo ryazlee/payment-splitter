@@ -4,16 +4,14 @@ import { createShareUrl, createSummaryLocation, encodeHashState, readHashState }
 import {
   createEmptyState,
   createItem,
-  clampSharesToQuantity,
   equalSharesForParticipants,
-  equalSplitItemIndex,
   getShareTotal,
-  isEqualSplitReceipt,
+  isEqualSplitItem,
   normalizeCurrencyInput,
   normalizeQuantityInput,
   parseQuantity,
   parseReceiptText,
-  reconcileItemsForSplitMode,
+  sharesForQuantityChange,
 } from '../utils/receipt'
 import { buildSummaryText, computeReceiptSummary } from '../utils/summary'
 import { normalizeVenmoHandle } from '../utils/venmo'
@@ -102,26 +100,22 @@ export function useReceiptSplitter() {
 
     updateState((current) => {
       const participants = [...current.participants, nextName]
-      const equalSplit = isEqualSplitReceipt(current.items)
-      const targetIndex = equalSplitItemIndex(current.items)
 
       return {
         ...current,
         participants,
-        // Single filled item: auto-include new people in the equal split.
-        items: equalSplit
-          ? current.items.map((item, index) =>
-              index === targetIndex
-                ? {
-                    ...item,
-                    shares: {
-                      ...item.shares,
-                      [nextName]: 1,
-                    },
-                  }
-                : item,
-            )
-          : current.items,
+        // Qty-1 lines auto-include new people in the equal split.
+        items: current.items.map((item) =>
+          isEqualSplitItem(item)
+            ? {
+                ...item,
+                shares: {
+                  ...item.shares,
+                  [nextName]: 1,
+                },
+              }
+            : item,
+        ),
       }
     })
     setPersonDraft('')
@@ -149,11 +143,7 @@ export function useReceiptSplitter() {
   function addItem() {
     updateState((current) => ({
       ...current,
-      items: reconcileItemsForSplitMode(
-        current.items,
-        [...current.items, createItem()],
-        current.participants,
-      ),
+      items: [...current.items, createItem()],
     }))
   }
 
@@ -169,20 +159,18 @@ export function useReceiptSplitter() {
       }
     }
 
-    updateState((current) => {
-      const drafted = current.items.map((item) => {
+    updateState((current) => ({
+      ...current,
+      items: current.items.map((item) => {
         if (item.id !== itemId) {
           return item
         }
 
         if (field === 'quantity' && typeof nextValue === 'string') {
-          const equalSplit = isEqualSplitReceipt(current.items)
           return {
             ...item,
             quantity: nextValue,
-            shares: equalSplit
-              ? item.shares
-              : clampSharesToQuantity(item.shares, parseQuantity(nextValue)),
+            shares: sharesForQuantityChange(item, nextValue, current.participants),
           }
         }
 
@@ -190,87 +178,68 @@ export function useReceiptSplitter() {
           ...item,
           [field]: nextValue,
         }
-      })
-
-      return {
-        ...current,
-        items: reconcileItemsForSplitMode(current.items, drafted, current.participants),
-      }
-    })
+      }),
+    }))
   }
 
   function removeItem(itemId: string) {
-    updateState((current) => {
-      if (current.items.length === 1) {
-        return {
-          ...current,
-          items: [createItem()],
-        }
-      }
-
-      return {
-        ...current,
-        items: reconcileItemsForSplitMode(
-          current.items,
-          current.items.filter((item) => item.id !== itemId),
-          current.participants,
-        ),
-      }
-    })
+    updateState((current) => ({
+      ...current,
+      items:
+        current.items.length === 1
+          ? [createItem()]
+          : current.items.filter((item) => item.id !== itemId),
+    }))
   }
 
   function setShare(itemId: string, participant: string, count: number) {
-    updateState((current) => {
-      const equalSplit = isEqualSplitReceipt(current.items)
+    updateState((current) => ({
+      ...current,
+      items: current.items.map((item) => {
+        if (item.id !== itemId) {
+          return item
+        }
 
-      return {
-        ...current,
-        items: current.items.map((item) => {
-          if (item.id !== itemId) {
-            return item
-          }
-
-          if (equalSplit) {
-            // Include/exclude only — everyone included pays an equal share.
-            if (count <= 0) {
-              const shares = { ...item.shares }
-              delete shares[participant]
-              return { ...item, shares }
-            }
-
-            return {
-              ...item,
-              shares: {
-                ...item.shares,
-                [participant]: 1,
-              },
-            }
-          }
-
-          const quantity = parseQuantity(item.quantity)
-          const othersTotal = getShareTotal(item.shares) - (item.shares[participant] ?? 0)
-          const maxForPerson = Math.max(0, quantity - othersTotal)
-          const nextCount = Math.min(Math.max(Math.floor(count), 0), maxForPerson)
-
-          if (nextCount <= 0) {
+        if (isEqualSplitItem(item)) {
+          // Include/exclude only — everyone included pays an equal share.
+          if (count <= 0) {
             const shares = { ...item.shares }
             delete shares[participant]
-            return {
-              ...item,
-              shares,
-            }
+            return { ...item, shares }
           }
 
           return {
             ...item,
             shares: {
               ...item.shares,
-              [participant]: nextCount,
+              [participant]: 1,
             },
           }
-        }),
-      }
-    })
+        }
+
+        const quantity = parseQuantity(item.quantity)
+        const othersTotal = getShareTotal(item.shares) - (item.shares[participant] ?? 0)
+        const maxForPerson = Math.max(0, quantity - othersTotal)
+        const nextCount = Math.min(Math.max(Math.floor(count), 0), maxForPerson)
+
+        if (nextCount <= 0) {
+          const shares = { ...item.shares }
+          delete shares[participant]
+          return {
+            ...item,
+            shares,
+          }
+        }
+
+        return {
+          ...item,
+          shares: {
+            ...item.shares,
+            [participant]: nextCount,
+          },
+        }
+      }),
+    }))
   }
 
   function splitEqually(itemId: string) {
@@ -348,10 +317,15 @@ export function useReceiptSplitter() {
             tip: parsedReceipt.tip || current.tip,
             fees: parsedReceipt.fees || current.fees,
             discount: parsedReceipt.discount || current.discount,
-            items: reconcileItemsForSplitMode(
-              current.items,
-              merged,
-              current.participants,
+            items: merged.map((item) =>
+              isEqualSplitItem(item) &&
+              current.participants.length > 0 &&
+              getShareTotal(item.shares) === 0
+                ? {
+                    ...item,
+                    shares: equalSharesForParticipants(current.participants),
+                  }
+                : item,
             ),
           }
         })
