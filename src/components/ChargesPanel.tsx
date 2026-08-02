@@ -1,3 +1,5 @@
+import SectionCard from './SectionCard'
+
 type ChargesPanelProps = {
   tax: string
   tip: string
@@ -19,31 +21,28 @@ export default function ChargesPanel({
     placeholder: string,
   ) {
     return (
-      <label className="relative min-w-[calc(50%-0.25rem)] flex-1">
-        <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-fg-muted">
-          $
-        </span>
+      <div className="input-affix">
+        <span className="input-affix__prefix">$</span>
         <input
           value={value}
           onChange={(event) => onChargeChange(field, event.target.value)}
           inputMode="decimal"
           pattern="^\d*(?:\.\d{0,2})?$"
-          className="w-full rounded bg-inset py-2 pr-3 pl-7 text-sm text-fg placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent"
           placeholder={placeholder}
+          aria-label={placeholder}
         />
-      </label>
+      </div>
     )
   }
 
   return (
-    <section className="space-y-3 rounded-app border border-border bg-surface p-4">
-      <h2 className="section-label">Charges</h2>
-      <div className="flex flex-wrap gap-2">
+    <SectionCard title="Charges" subtitle="Tax, tip, fees, and discounts split by share.">
+      <div className="field-row">
         {renderCurrencyInput('tax', tax, 'Tax')}
         {renderCurrencyInput('tip', tip, 'Tip')}
         {renderCurrencyInput('fees', fees, 'Fees')}
         {renderCurrencyInput('discount', discount, 'Discount')}
       </div>
-    </section>
+    </SectionCard>
   )
 }

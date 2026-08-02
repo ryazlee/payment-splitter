@@ -21,11 +21,15 @@ export type ReceiptSummary = {
   summaryRows: SummaryRow[]
 }
 
-function amountForShare(total: number, shareCount: number, quantity: number): number {
-  if (shareCount <= 0 || quantity <= 0 || total <= 0) {
+function amountForShare(
+  total: number,
+  shareCount: number,
+  divisor: number,
+): number {
+  if (shareCount <= 0 || divisor <= 0 || total <= 0) {
     return 0
   }
-  return (shareCount / quantity) * total
+  return (shareCount / divisor) * total
 }
 
 export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
@@ -33,6 +37,7 @@ export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
     new Set(state.participants.map((name) => name.trim()).filter(Boolean)),
   )
   const participantSet = new Set(participants)
+  const equalSplit = state.items.length <= 1
   const items = state.items.map((item) => {
     const quantity = parseQuantity(item.quantity)
     const total = quantity * parseMoneyInput(item.price)
@@ -43,9 +48,11 @@ export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
       }
     }
     const shareTotal = getShareTotal(shares)
+    // Equal-split: parts / number of parts. Assign mode: units / item quantity.
+    const divisor = equalSplit ? shareTotal : quantity
     const amountByParticipant: Record<string, number> = {}
     for (const [name, count] of Object.entries(shares)) {
-      amountByParticipant[name] = amountForShare(total, count, quantity)
+      amountByParticipant[name] = amountForShare(total, count, divisor)
     }
 
     return {
@@ -90,8 +97,14 @@ export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
     }
   })
   const unassignedTotal = items.reduce((sum, item) => {
+    if (item.total <= 0) {
+      return sum
+    }
+    if (equalSplit) {
+      return item.shareTotal > 0 ? sum : sum + item.total
+    }
     const quantity = parseQuantity(item.quantity)
-    if (item.total <= 0 || quantity <= 0) {
+    if (quantity <= 0) {
       return sum
     }
     const unassignedUnits = Math.max(quantity - item.shareTotal, 0)

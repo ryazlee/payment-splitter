@@ -1,145 +1,189 @@
 import type { ReceiptItem } from '../types'
 import { formatMoney, getShareTotal, parseMoneyInput, parseQuantity } from '../utils/receipt'
+import Button from './Button'
 
 type ReceiptItemCardProps = {
   index: number
   item: ReceiptItem
   participants: string[]
+  equalSplit: boolean
   onUpdateItem: (itemId: string, field: keyof ReceiptItem, value: string | Record<string, number>) => void
   onRemoveItem: (itemId: string) => void
   onSetShare: (itemId: string, participant: string, count: number) => void
+  onSplitEqually: (itemId: string) => void
 }
 
 export default function ReceiptItemCard({
   index,
   item,
   participants,
+  equalSplit,
   onUpdateItem,
   onRemoveItem,
   onSetShare,
+  onSplitEqually,
 }: ReceiptItemCardProps) {
   const quantity = parseQuantity(item.quantity)
   const unitPrice = parseMoneyInput(item.price)
   const total = quantity * unitPrice
   const shareTotal = getShareTotal(item.shares)
   const remaining = Math.max(quantity - shareTotal, 0)
+  const splitCount = Object.values(item.shares).filter((count) => count > 0).length
+  const equalAmount = equalSplit && splitCount > 0 && total > 0 ? total / splitCount : 0
+  const everyoneIncluded =
+    participants.length > 0 && participants.every((name) => (item.shares[name] ?? 0) > 0)
 
   return (
-    <article className="space-y-2 rounded bg-inset p-3">
+    <article className="inset-block item-card">
       <input
         value={item.name}
         onChange={(event) => onUpdateItem(item.id, 'name', event.target.value)}
-        className="w-full rounded bg-app px-3 py-2 text-sm text-fg placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent"
+        className="input input--on-inset"
         placeholder={`Item ${index + 1}`}
       />
-      <div className="flex flex-wrap gap-2 sm:flex-nowrap">
-        <label className="relative min-w-0 flex-1">
-          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-fg-muted">
-            $
-          </span>
+      <div className="item-card__fields">
+        <div className="input-affix input--on-inset">
+          <span className="input-affix__prefix">$</span>
           <input
             value={item.price}
             onChange={(event) => onUpdateItem(item.id, 'price', event.target.value)}
             inputMode="decimal"
             pattern="^\d*(?:\.\d{0,2})?$"
-            className="w-full rounded bg-app py-2 pr-3 pl-7 text-sm text-fg placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent"
             placeholder="0.00"
+            aria-label="Price"
           />
-        </label>
+        </div>
         <input
           value={item.quantity}
           onChange={(event) => onUpdateItem(item.id, 'quantity', event.target.value)}
           inputMode="numeric"
           pattern="^\d*$"
-          className="w-[88px] shrink-0 rounded bg-app px-3 py-2 text-sm text-fg placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent"
+          className="input input--on-inset item-card__qty"
           placeholder="Qty"
+          aria-label="Quantity"
         />
-        <button
-          type="button"
+        <Button
+          label="Remove"
+          variant="secondary"
+          size="sm"
+          className="item-card__remove"
           onClick={() => onRemoveItem(item.id)}
-          className="w-full rounded-app border border-border bg-surface px-3 py-2 text-sm text-fg hover:bg-app sm:w-auto sm:shrink-0"
-        >
-          Remove
-        </button>
+        />
       </div>
 
       {participants.length > 0 ? (
-        <div className="space-y-1">
-          <p className="text-[11px] font-medium tracking-wide text-fg-muted uppercase">
-            Who got what
-          </p>
-          <div className="space-y-1">
-            {participants.map((participant) => {
-              const count = item.shares[participant] ?? 0
-              const amount = count > 0 && quantity > 0 ? (count / quantity) * total : 0
-              const canIncrease = remaining > 0
-
-              if (count <= 0) {
+        equalSplit ? (
+          <div className="stack stack--tight">
+            <div className="item-card__split-header">
+              <p className="section-label">Split equally</p>
+              {!everyoneIncluded ? (
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  onClick={() => onSplitEqually(item.id)}
+                >
+                  Include everyone
+                </button>
+              ) : null}
+            </div>
+            <div className="chip-row">
+              {participants.map((participant) => {
+                const included = (item.shares[participant] ?? 0) > 0
                 return (
                   <button
                     key={`${item.id}-${participant}`}
                     type="button"
-                    onClick={() => onSetShare(item.id, participant, 1)}
-                    disabled={!canIncrease}
-                    className="flex w-full items-center justify-between rounded bg-surface px-3 py-2 text-left text-sm text-fg-secondary hover:bg-app disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-surface"
-                  >
-                    <span>{participant}</span>
-                    <span className="text-xs text-fg-muted">{canIncrease ? 'Add' : 'Full'}</span>
-                  </button>
-                )
-              }
-
-              return (
-                <div
-                  key={`${item.id}-${participant}`}
-                  className="flex items-center gap-2 rounded bg-app px-2 py-1.5"
-                >
-                  <button
-                    type="button"
-                    onClick={() => onSetShare(item.id, participant, 0)}
-                    className="min-w-0 flex-1 truncate rounded px-1 py-1 text-left text-sm text-fg hover:text-fg-muted"
-                    title={`Remove ${participant}`}
+                    className={included ? 'chip chip--active' : 'chip'}
+                    onClick={() => onSetShare(item.id, participant, included ? 0 : 1)}
                   >
                     {participant}
                   </button>
-                  <div className="flex shrink-0 items-center gap-0.5">
-                    <button
-                      type="button"
-                      onClick={() => onSetShare(item.id, participant, count - 1)}
-                      className="flex h-8 w-8 items-center justify-center rounded text-base text-fg-secondary hover:bg-inset"
-                      aria-label={`Fewer for ${participant}`}
-                    >
-                      −
-                    </button>
-                    <span className="w-6 text-center text-sm font-medium tabular-nums text-fg">
-                      {count}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => onSetShare(item.id, participant, count + 1)}
-                      disabled={!canIncrease}
-                      className="flex h-8 w-8 items-center justify-center rounded text-base text-fg-secondary hover:bg-inset disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-                      aria-label={`More for ${participant}`}
-                    >
-                      +
-                    </button>
-                  </div>
-                  <span className="w-14 shrink-0 text-right text-xs tabular-nums text-fg-muted">
-                    {formatMoney(amount)}
-                  </span>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="stack stack--tight">
+            <p className="section-label">Who got what</p>
+            <div className="share-list">
+              {participants.map((participant) => {
+                const count = item.shares[participant] ?? 0
+                const amount = count > 0 && quantity > 0 ? (count / quantity) * total : 0
+                const canIncrease = remaining > 0
+
+                if (count <= 0) {
+                  return (
+                    <button
+                      key={`${item.id}-${participant}`}
+                      type="button"
+                      onClick={() => onSetShare(item.id, participant, 1)}
+                      disabled={!canIncrease}
+                      className="share-row"
+                    >
+                      <span>{participant}</span>
+                      <span className="meta meta--muted meta--sm">
+                        {canIncrease ? 'Add' : 'Full'}
+                      </span>
+                    </button>
+                  )
+                }
+
+                return (
+                  <div
+                    key={`${item.id}-${participant}`}
+                    className="share-row share-row--active"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onSetShare(item.id, participant, 0)}
+                      className="share-row__name"
+                      title={`Remove ${participant}`}
+                    >
+                      {participant}
+                    </button>
+                    <div className="share-row__stepper">
+                      <button
+                        type="button"
+                        onClick={() => onSetShare(item.id, participant, count - 1)}
+                        className="share-row__step"
+                        aria-label={`Fewer for ${participant}`}
+                      >
+                        −
+                      </button>
+                      <span className="share-row__count">{count}</span>
+                      <button
+                        type="button"
+                        onClick={() => onSetShare(item.id, participant, count + 1)}
+                        disabled={!canIncrease}
+                        className="share-row__step"
+                        aria-label={`More for ${participant}`}
+                      >
+                        +
+                      </button>
+                    </div>
+                    <span className="share-row__amount">{formatMoney(amount)}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
       ) : (
-        <p className="text-sm text-fg-muted">Add people to assign this item.</p>
+        <p className="empty-hint">
+          {equalSplit ? 'Add people to split this equally.' : 'Add people to assign this item.'}
+        </p>
       )}
 
-      <div className="flex items-center justify-between text-sm text-fg-muted">
+      <div className="item-card__footer">
         <span>{formatMoney(total)}</span>
         <span>
-          {shareTotal > 0 ? `${shareTotal} of ${quantity}` : 'Unassigned'}
+          {equalSplit
+            ? splitCount > 0
+              ? `${formatMoney(equalAmount)} each · ${splitCount} splitting`
+              : 'Unassigned'
+            : shareTotal > 0
+              ? `${shareTotal} of ${quantity}`
+              : 'Unassigned'}
         </span>
       </div>
     </article>

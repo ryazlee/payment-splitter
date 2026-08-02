@@ -5,7 +5,9 @@ import {
   createEmptyState,
   createItem,
   clampSharesToQuantity,
+  equalSharesForParticipants,
   getShareTotal,
+  isEqualSplitReceipt,
   normalizeCurrencyInput,
   normalizeQuantityInput,
   parseQuantity,
@@ -96,10 +98,25 @@ export function useReceiptSplitter() {
       return
     }
 
-    updateState((current) => ({
-      ...current,
-      participants: [...current.participants, nextName],
-    }))
+    updateState((current) => {
+      const participants = [...current.participants, nextName]
+      const equalSplit = isEqualSplitReceipt(current.items)
+
+      return {
+        ...current,
+        participants,
+        // Single-item receipts auto-include new people in the equal split.
+        items: equalSplit
+          ? current.items.map((item) => ({
+              ...item,
+              shares: {
+                ...item.shares,
+                [nextName]: 1,
+              },
+            }))
+          : current.items,
+      }
+    })
     setPersonDraft('')
     setNotice('')
   }
@@ -123,10 +140,24 @@ export function useReceiptSplitter() {
   }
 
   function addItem() {
-    updateState((current) => ({
-      ...current,
-      items: [...current.items, createItem()],
-    }))
+    updateState((current) => {
+      const nextItems = [...current.items, createItem()]
+      // Leaving equal-split mode: clamp existing shares back to unit quantities.
+      if (current.items.length === 1) {
+        return {
+          ...current,
+          items: nextItems.map((item) => ({
+            ...item,
+            shares: clampSharesToQuantity(item.shares, parseQuantity(item.quantity)),
+          })),
+        }
+      }
+
+      return {
+        ...current,
+        items: nextItems,
+      }
+    })
   }
 
   function updateItem(itemId: string, field: keyof ReceiptItem, value: string | Record<string, number>) {
@@ -141,69 +172,128 @@ export function useReceiptSplitter() {
       }
     }
 
-    updateState((current) => ({
-      ...current,
-      items: current.items.map((item) => {
-        if (item.id !== itemId) {
-          return item
-        }
+    updateState((current) => {
+      const equalSplit = isEqualSplitReceipt(current.items)
 
-        if (field === 'quantity' && typeof nextValue === 'string') {
+      return {
+        ...current,
+        items: current.items.map((item) => {
+          if (item.id !== itemId) {
+            return item
+          }
+
+          if (field === 'quantity' && typeof nextValue === 'string') {
+            return {
+              ...item,
+              quantity: nextValue,
+              // Only clamp in assign mode — equal-split parts aren't units.
+              shares: equalSplit
+                ? item.shares
+                : clampSharesToQuantity(item.shares, parseQuantity(nextValue)),
+            }
+          }
+
           return {
             ...item,
-            quantity: nextValue,
-            shares: clampSharesToQuantity(item.shares, parseQuantity(nextValue)),
+            [field]: nextValue,
           }
-        }
-
-        return {
-          ...item,
-          [field]: nextValue,
-        }
-      }),
-    }))
+        }),
+      }
+    })
   }
 
   function removeItem(itemId: string) {
-    updateState((current) => ({
-      ...current,
-      items:
-        current.items.length === 1
-          ? [createItem()]
-          : current.items.filter((item) => item.id !== itemId),
-    }))
+    updateState((current) => {
+      if (current.items.length === 1) {
+        return {
+          ...current,
+          items: [createItem()],
+        }
+      }
+
+      const nextItems = current.items.filter((item) => item.id !== itemId)
+      // Back to a single item: switch to equal-split among everyone.
+      if (nextItems.length === 1) {
+        return {
+          ...current,
+          items: [
+            {
+              ...nextItems[0],
+              shares: equalSharesForParticipants(current.participants),
+            },
+          ],
+        }
+      }
+
+      return {
+        ...current,
+        items: nextItems,
+      }
+    })
   }
 
   function setShare(itemId: string, participant: string, count: number) {
-    updateState((current) => ({
-      ...current,
-      items: current.items.map((item) => {
-        if (item.id !== itemId) {
-          return item
-        }
+    updateState((current) => {
+      const equalSplit = isEqualSplitReceipt(current.items)
 
-        const quantity = parseQuantity(item.quantity)
-        const othersTotal = getShareTotal(item.shares) - (item.shares[participant] ?? 0)
-        const maxForPerson = Math.max(0, quantity - othersTotal)
-        const nextCount = Math.min(Math.max(Math.floor(count), 0), maxForPerson)
+      return {
+        ...current,
+        items: current.items.map((item) => {
+          if (item.id !== itemId) {
+            return item
+          }
 
-        if (nextCount <= 0) {
-          const shares = { ...item.shares }
-          delete shares[participant]
+          if (equalSplit) {
+            // Include/exclude only — everyone included pays an equal share.
+            if (count <= 0) {
+              const shares = { ...item.shares }
+              delete shares[participant]
+              return { ...item, shares }
+            }
+
+            return {
+              ...item,
+              shares: {
+                ...item.shares,
+                [participant]: 1,
+              },
+            }
+          }
+
+          const quantity = parseQuantity(item.quantity)
+          const othersTotal = getShareTotal(item.shares) - (item.shares[participant] ?? 0)
+          const maxForPerson = Math.max(0, quantity - othersTotal)
+          const nextCount = Math.min(Math.max(Math.floor(count), 0), maxForPerson)
+
+          if (nextCount <= 0) {
+            const shares = { ...item.shares }
+            delete shares[participant]
+            return {
+              ...item,
+              shares,
+            }
+          }
+
           return {
             ...item,
-            shares,
+            shares: {
+              ...item.shares,
+              [participant]: nextCount,
+            },
           }
-        }
+        }),
+      }
+    })
+  }
 
-        return {
-          ...item,
-          shares: {
-            ...item.shares,
-            [participant]: nextCount,
-          },
-        }
-      }),
+  function splitEqually(itemId: string) {
+    updateState((current) => ({
+      ...current,
+      items: current.items.map((item) =>
+        item.id === itemId
+          ? { ...item, shares: equalSharesForParticipants(current.participants) }
+          : item,
+      ),
     }))
   }
 
@@ -254,21 +344,44 @@ export function useReceiptSplitter() {
       setNotice('')
 
       startTransition(() => {
-        updateState((current) => ({
-          ...current,
-          title:
-            current.title === 'Shared receipt'
-              ? parsedReceipt.title || file.name.replace(/\.[^.]+$/, '')
-              : current.title,
-          tax: parsedReceipt.tax || current.tax,
-          tip: parsedReceipt.tip || current.tip,
-          fees: parsedReceipt.fees || current.fees,
-          discount: parsedReceipt.discount || current.discount,
-          items:
+        updateState((current) => {
+          const kept = current.items.filter((item) => item.name || item.price)
+          const merged =
             parsedReceipt.items.length > 0
-              ? [...current.items.filter((item) => item.name || item.price), ...parsedReceipt.items]
-              : current.items,
-        }))
+              ? [...kept, ...parsedReceipt.items]
+              : current.items
+
+          const items =
+            merged.length === 1 && current.participants.length > 0
+              ? [
+                  {
+                    ...merged[0],
+                    shares: equalSharesForParticipants(current.participants),
+                  },
+                ]
+              : merged.length > 1
+                ? merged.map((item) => ({
+                    ...item,
+                    shares: clampSharesToQuantity(
+                      item.shares,
+                      parseQuantity(item.quantity),
+                    ),
+                  }))
+                : merged
+
+          return {
+            ...current,
+            title:
+              current.title === 'Shared receipt'
+                ? parsedReceipt.title || file.name.replace(/\.[^.]+$/, '')
+                : current.title,
+            tax: parsedReceipt.tax || current.tax,
+            tip: parsedReceipt.tip || current.tip,
+            fees: parsedReceipt.fees || current.fees,
+            discount: parsedReceipt.discount || current.discount,
+            items,
+          }
+        })
       })
 
       setOcrStatus(
@@ -379,6 +492,7 @@ export function useReceiptSplitter() {
     updateItem,
     removeItem,
     setShare,
+    splitEqually,
     processReceiptFile,
     retryReceiptOcr,
     copyShareLink,

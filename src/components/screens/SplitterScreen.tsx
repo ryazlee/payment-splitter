@@ -37,6 +37,7 @@ export default function SplitterScreen() {
     updateItem,
     removeItem,
     setShare,
+    splitEqually,
     processReceiptFile,
     retryReceiptOcr,
     copyShareLink,
@@ -46,71 +47,75 @@ export default function SplitterScreen() {
   } = useReceiptSplitter()
 
   return (
-    <main className="min-h-screen bg-app p-4 text-fg">
-      <div className="mx-auto max-w-md space-y-4">
-        <AppHeader title="Receipt Splitter" />
+    <div className="app-shell">
+      <AppHeader title="Receipt Splitter" />
+      <main className="app-main">
+        <div className="shell-inner">
+          <div className="page">
+            <ReceiptOverviewPanel
+              title={receiptState.title}
+              receiptTotal={receiptTotal}
+              unassignedTotal={unassignedTotal}
+              remainingTotal={remainingTotal}
+              participantCount={participants.length}
+              receiptPreviewUrl={receiptPreviewUrl}
+              isOcrProcessing={isOcrProcessing}
+              ocrStatus={ocrStatus}
+              ocrProgress={ocrProgress}
+              notice={notice}
+              payerVenmo={receiptState.payerVenmo}
+              summaryLocation={summaryLocation}
+              onTitleChange={updateTitle}
+              onPayerVenmoChange={updatePayerVenmo}
+              onReceiptFileSelect={processReceiptFile}
+              onRetryReceiptOcr={retryReceiptOcr}
+              onCopyShareLink={copyShareLink}
+              onCopySummary={copySummary}
+              onClearReceipt={clearReceipt}
+            />
 
-        <ReceiptOverviewPanel
-          title={receiptState.title}
-          receiptTotal={receiptTotal}
-          unassignedTotal={unassignedTotal}
-          remainingTotal={remainingTotal}
-          participantCount={participants.length}
-          receiptPreviewUrl={receiptPreviewUrl}
-          isOcrProcessing={isOcrProcessing}
-          ocrStatus={ocrStatus}
-          ocrProgress={ocrProgress}
-          notice={notice}
-          payerVenmo={receiptState.payerVenmo}
-          summaryLocation={summaryLocation}
-          onTitleChange={updateTitle}
-          onPayerVenmoChange={updatePayerVenmo}
-          onReceiptFileSelect={processReceiptFile}
-          onRetryReceiptOcr={retryReceiptOcr}
-          onCopyShareLink={copyShareLink}
-          onCopySummary={copySummary}
-          onClearReceipt={clearReceipt}
-        />
+            <ParticipantsPanel
+              personDraft={personDraft}
+              participants={participants}
+              onPersonDraftChange={setPersonDraft}
+              onAddParticipant={addParticipant}
+              onRemoveParticipant={removeParticipant}
+            />
 
-        <ParticipantsPanel
-          personDraft={personDraft}
-          participants={participants}
-          onPersonDraftChange={setPersonDraft}
-          onAddParticipant={addParticipant}
-          onRemoveParticipant={removeParticipant}
-        />
+            <ItemsPanel
+              items={receiptState.items}
+              participants={participants}
+              onAddItem={addItem}
+              onUpdateItem={updateItem}
+              onRemoveItem={removeItem}
+              onSetShare={setShare}
+              onSplitEqually={splitEqually}
+            />
 
-        <ItemsPanel
-          items={receiptState.items}
-          participants={participants}
-          onAddItem={addItem}
-          onUpdateItem={updateItem}
-          onRemoveItem={removeItem}
-          onSetShare={setShare}
-        />
+            <ChargesPanel
+              tax={receiptState.tax}
+              tip={receiptState.tip}
+              fees={receiptState.fees}
+              discount={receiptState.discount}
+              onChargeChange={updateCharge}
+            />
 
-        <ChargesPanel
-          tax={receiptState.tax}
-          tip={receiptState.tip}
-          fees={receiptState.fees}
-          discount={receiptState.discount}
-          onChargeChange={updateCharge}
-        />
+            <SummaryPanel
+              receiptTitle={receiptState.title}
+              payerVenmo={receiptState.payerVenmo}
+              subtotal={subtotal}
+              taxAmount={taxAmount}
+              tipAmount={tipAmount}
+              feesAmount={feesAmount}
+              discountAmount={discountAmount}
+              receiptTotal={receiptTotal}
+              summaryRows={summaryRows}
+            />
 
-        <SummaryPanel
-          receiptTitle={receiptState.title}
-          payerVenmo={receiptState.payerVenmo}
-          subtotal={subtotal}
-          taxAmount={taxAmount}
-          tipAmount={tipAmount}
-          feesAmount={feesAmount}
-          discountAmount={discountAmount}
-          receiptTotal={receiptTotal}
-          summaryRows={summaryRows}
-        />
-
-        <OcrPreviewPanel ocrPreview={ocrPreview} />
-      </div>
-    </main>
+            <OcrPreviewPanel ocrPreview={ocrPreview} />
+          </div>
+        </div>
+      </main>
+    </div>
   )
 }

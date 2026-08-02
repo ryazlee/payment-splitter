@@ -10,16 +10,16 @@ export default function AppHeader({
   subtitle = 'Split the bill without the spreadsheet.',
 }: AppHeaderProps) {
   return (
-    <header className="flex items-start justify-between gap-3 pt-1">
-      <div className="min-w-0">
-        <h1 className="m-0 text-xl font-semibold tracking-tight text-fg">{title}</h1>
-        {subtitle ? (
-          <p className="mt-1 mb-0 text-[0.8125rem] leading-snug text-fg-secondary">
-            {subtitle}
-          </p>
-        ) : null}
+    <header className="app-header">
+      <div className="app-header-inner">
+        <div className="brand-block">
+          <h1 className="brand">{title}</h1>
+          {subtitle ? <p className="subtitle">{subtitle}</p> : null}
+        </div>
+        <div className="header-actions">
+          <ThemeToggle />
+        </div>
       </div>
-      <ThemeToggle />
     </header>
   )
 }

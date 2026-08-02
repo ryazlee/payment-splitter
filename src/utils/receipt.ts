@@ -73,8 +73,19 @@ export function createItem(overrides: Partial<ReceiptItem> = {}): ReceiptItem {
     price: '',
     ...rest,
     quantity: quantityValue,
-    shares: clampSharesToQuantity(normalizeShares(shares), parseQuantity(quantityValue)),
+    // Do not clamp to quantity here — equal-split (single item) can have
+    // more share parts than quantity (e.g. 3 people each with 1 on qty 1).
+    shares: normalizeShares(shares),
   }
+}
+
+/** True when the receipt should use equal-split instead of per-unit assignment. */
+export function isEqualSplitReceipt(items: ReceiptItem[]): boolean {
+  return items.length <= 1
+}
+
+export function equalSharesForParticipants(participants: string[]): Record<string, number> {
+  return sharesFromAssignees(participants)
 }
 
 export function createEmptyState(): ReceiptState {

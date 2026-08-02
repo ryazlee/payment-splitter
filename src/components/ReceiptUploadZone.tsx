@@ -1,4 +1,5 @@
 import { useRef, type ChangeEvent } from 'react'
+import Button from './Button'
 
 type ReceiptUploadZoneProps = {
   receiptPreviewUrl: string
@@ -29,41 +30,35 @@ export default function ReceiptUploadZone({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="stack">
       {receiptPreviewUrl ? (
         <img
           src={receiptPreviewUrl}
           alt="Uploaded receipt preview"
-          className="mx-auto max-h-48 w-full rounded bg-app/40 object-contain"
+          className="receipt-preview"
         />
       ) : null}
 
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
+      <div className="btn-grid">
+        <Button
+          label="Upload photo"
+          variant="secondary"
+          disabled={isProcessing}
           onClick={() => galleryInputRef.current?.click()}
+        />
+        <Button
+          label="Take photo"
+          variant="secondary"
           disabled={isProcessing}
-          className="rounded-[10px] border border-border bg-surface px-3 py-2 text-sm text-fg hover:bg-inset disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          Upload photo
-        </button>
-        <button
-          type="button"
           onClick={() => cameraInputRef.current?.click()}
-          disabled={isProcessing}
-          className="rounded-[10px] border border-border bg-surface px-3 py-2 text-sm text-fg hover:bg-inset disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          Take photo
-        </button>
+        />
         {receiptPreviewUrl ? (
-          <button
-            type="button"
-            onClick={onRetry}
+          <Button
+            label="Scan again"
+            className="btn-grid__full"
             disabled={isProcessing}
-            className="col-span-2 rounded-[10px] bg-accent px-3 py-2 text-sm font-semibold text-accent-contrast hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Scan again
-          </button>
+            onClick={onRetry}
+          />
         ) : null}
       </div>
 
@@ -83,10 +78,10 @@ export default function ReceiptUploadZone({
         onChange={handleInputChange}
       />
 
-      <div className="text-sm text-fg-muted">
+      <p className="meta meta--muted meta--sm">
         OCR: {ocrStatus}
         {ocrProgress > 0 ? ` (${Math.round(ocrProgress * 100)}%)` : ''}
-      </div>
+      </p>
     </div>
   )
 }

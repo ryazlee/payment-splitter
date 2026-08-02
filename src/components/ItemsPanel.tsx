@@ -1,5 +1,8 @@
 import ReceiptItemCard from './ReceiptItemCard'
+import Button from './Button'
+import SectionCard from './SectionCard'
 import type { ReceiptItem } from '../types'
+import { isEqualSplitReceipt } from '../utils/receipt'
 
 type ItemsPanelProps = {
   items: ReceiptItem[]
@@ -8,6 +11,7 @@ type ItemsPanelProps = {
   onUpdateItem: (itemId: string, field: keyof ReceiptItem, value: string | Record<string, number>) => void
   onRemoveItem: (itemId: string) => void
   onSetShare: (itemId: string, participant: string, count: number) => void
+  onSplitEqually: (itemId: string) => void
 }
 
 export default function ItemsPanel({
@@ -17,32 +21,38 @@ export default function ItemsPanel({
   onUpdateItem,
   onRemoveItem,
   onSetShare,
+  onSplitEqually,
 }: ItemsPanelProps) {
+  const equalSplit = isEqualSplitReceipt(items)
+
   return (
-    <section className="space-y-3 rounded-app border border-border bg-surface p-4">
-      <h2 className="section-label">Items</h2>
+    <SectionCard
+      title="Items"
+      subtitle={
+        equalSplit
+          ? 'One item — split the total equally among the people you include.'
+          : 'Assign shares to the people who ordered each item.'
+      }
+    >
+      <div className="stack">
+        <div className="stack stack--tight">
+          {items.map((item, index) => (
+            <ReceiptItemCard
+              key={item.id}
+              index={index}
+              item={item}
+              participants={participants}
+              equalSplit={equalSplit}
+              onUpdateItem={onUpdateItem}
+              onRemoveItem={onRemoveItem}
+              onSetShare={onSetShare}
+              onSplitEqually={onSplitEqually}
+            />
+          ))}
+        </div>
 
-      <div className="space-y-2">
-        {items.map((item, index) => (
-          <ReceiptItemCard
-            key={item.id}
-            index={index}
-            item={item}
-            participants={participants}
-            onUpdateItem={onUpdateItem}
-            onRemoveItem={onRemoveItem}
-            onSetShare={onSetShare}
-          />
-        ))}
+        <Button label="Add item" variant="secondary" block onClick={onAddItem} />
       </div>
-
-      <button
-        type="button"
-        onClick={onAddItem}
-        className="w-full rounded-[10px] border border-border bg-surface px-3 py-2 text-sm text-fg hover:bg-inset"
-      >
-        Add item
-      </button>
-    </section>
+    </SectionCard>
   )
 }
