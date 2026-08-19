@@ -1,4 +1,5 @@
 import AppHeader from '../AppHeader'
+import MakerCredit from '../MakerCredit'
 import ChargesPanel from '../ChargesPanel'
 import ItemsPanel from '../ItemsPanel'
 import OcrPreviewPanel from '../OcrPreviewPanel'
@@ -116,6 +117,9 @@ export default function SplitterScreen() {
           </div>
         </div>
       </main>
+      <footer className="app-footer">
+        <MakerCredit />
+      </footer>
     </div>
   )
 }

@@ -13,20 +13,22 @@
 }
 
 :root {
-  --text: #0b1220;
-  --text-secondary: #374151;
-  --text-muted: #6b7280;
-  --bg: #f3f4f6;
+  --text: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --bg: #fafafa;
   --surface: #ffffff;
-  --inset: #e5e7eb;
-  --border: #d1d5db;
-  --accent: #0b1220;
+  --inset: #f3f4f6;
+  --border: #e5e7eb;
+  --accent: #111827;
   --accent-contrast: #ffffff;
+  --link: #2563eb;
   --danger: #dc2626;
   --success: #059669;
   --radius: 12px;
   --content-max: 720px;
   --touch-min: 44px;
+  --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
@@ -45,17 +47,18 @@
 
 html.theme-dark {
   color-scheme: dark;
-  --text: #f9fafb;
-  --text-secondary: #d1d5db;
-  --text-muted: #9ca3af;
-  --bg: #0b1220;
-  --surface: #1f2937;
-  --inset: #111827;
-  --border: #4b5563;
-  --accent: #f9fafb;
-  --accent-contrast: #0b1220;
-  --danger: #f87171;
-  --success: #34d399;
+  --text: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --bg: #09090b;
+  --surface: #141416;
+  --inset: #1c1c1f;
+  --border: #27272a;
+  --accent: #fafafa;
+  --accent-contrast: #09090b;
+  --link: #8cb4ff;
+  --danger: #fb7185;
+  --success: #4ade80;
 }
 
 @theme inline {
@@ -68,6 +71,7 @@ html.theme-dark {
   --color-fg-muted: var(--text-muted);
   --color-accent: var(--accent);
   --color-accent-contrast: var(--accent-contrast);
+  --color-link: var(--link);
   --color-danger: var(--danger);
   --color-success: var(--success);
   --radius-app: var(--radius);
@@ -181,7 +185,29 @@ a {
 
 .app-main {
   flex: 1 1 auto;
-  padding: 1.25rem 0 calc(1.5rem + var(--safe-bottom));
+  padding: 1.25rem 0 1.5rem;
+}
+
+.app-footer {
+  flex-shrink: 0;
+  padding: 0.85rem 1rem calc(0.85rem + var(--safe-bottom));
+  text-align: center;
+}
+
+.maker {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.maker a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.maker a:hover {
+  color: var(--text-secondary);
 }
 
 .page {
@@ -500,16 +526,16 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: 999px;
-  background: var(--surface);
+  background: transparent;
   font-size: 1.15rem;
   line-height: 1;
   color: var(--text);
 }
 
 .theme-toggle:hover {
-  border-color: color-mix(in srgb, var(--text-muted) 40%, var(--border));
+  background: color-mix(in srgb, var(--text) 5%, transparent);
 }
 
 .receipt-preview {

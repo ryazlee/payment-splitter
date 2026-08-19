@@ -1,6 +1,7 @@
 import { startTransition, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import AppHeader from '../AppHeader'
+import MakerCredit from '../MakerCredit'
 import SectionCard from '../SectionCard'
 import SummaryPanel from '../SummaryPanel'
 import { createShareUrl, readHashState } from '../../utils/hashState'
@@ -38,6 +39,9 @@ export default function SummaryScreen() {
             </div>
           </div>
         </main>
+        <footer className="app-footer">
+          <MakerCredit />
+        </footer>
       </div>
     )
   }
@@ -72,6 +76,9 @@ export default function SummaryScreen() {
           </div>
         </div>
       </main>
+      <footer className="app-footer">
+        <MakerCredit />
+      </footer>
     </div>
   )
 }
