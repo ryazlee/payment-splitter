@@ -7,6 +7,8 @@ import { createItem, getShareTotal, normalizeState, sharesFromAssignees } from '
 const BINARY_PREFIX = 'b'
 /** Compact binary payload marker (also used after a readable title= param). */
 const DATA_PREFIX = 'd:'
+/** Break long Base64-like runs so iMessage/Signal still autolink the URL. */
+const PAYLOAD_BREAK_EVERY = 300
 /** Older lz-string+JSON hashes. */
 const LZ_PREFIX = 's:'
 const TITLE_PARAM = 'title='
@@ -490,7 +492,7 @@ function chooseSmallestPayload(bytes: Uint8Array): string {
 }
 
 function decodeBinaryPayload(encoded: string): ReceiptState | null {
-  const decoded = decodeBaseAlphabet(encoded, HASH_ALPHABET)
+  const decoded = decodeBaseAlphabet(encoded.replaceAll('-', ''), HASH_ALPHABET)
   if (!decoded || decoded.length < 2) {
     return null
   }
@@ -790,10 +792,22 @@ function getReadableTitle(state: ReceiptState): string {
   return title && title !== 'Shared receipt' ? title : ''
 }
 
+function insertPayloadBreaks(payload: string): string {
+  if (payload.length <= PAYLOAD_BREAK_EVERY) {
+    return payload
+  }
+
+  const chunks: string[] = []
+  for (let index = 0; index < payload.length; index += PAYLOAD_BREAK_EVERY) {
+    chunks.push(payload.slice(index, index + PAYLOAD_BREAK_EVERY))
+  }
+  return chunks.join('-')
+}
+
 /** Hybrid: title=<readable>&d:<payload> (or just d:<payload>). */
 function encodeHybridHash(state: ReceiptState): string {
   const packed = packBinaryState(state, { includeTitle: false })
-  const payload = `${DATA_PREFIX}${chooseSmallestPayload(packed)}`
+  const payload = `${DATA_PREFIX}${insertPayloadBreaks(chooseSmallestPayload(packed))}`
   const title = getReadableTitle(state)
   if (!title) {
     return payload
