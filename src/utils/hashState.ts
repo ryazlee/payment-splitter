@@ -5,8 +5,10 @@ import { createItem, getShareTotal, normalizeState, sharesFromAssignees } from '
 
 /** Bare binary hashes (brief transitional format). */
 const BINARY_PREFIX = 'b'
-/** Compact binary payload marker (also used after a readable title= param). */
+/** Compact binary payload marker used by older share links (`d:` looks like a URL scheme in iMessage). */
 const DATA_PREFIX = 'd:'
+/** Colon-free payload marker for new share links. */
+const DATA_MARKER = 'd'
 /** Older lz-string+JSON hashes. */
 const LZ_PREFIX = 's:'
 const TITLE_PARAM = 'title='
@@ -770,10 +772,12 @@ function finalizeState(state: ReceiptState | null): ReceiptState | null {
 
 function encodeReadableTitle(title: string): string {
   // Keep the title human-readable; use + for spaces so links survive copy/paste.
+  // Encode colon so iMessage does not treat it as a new URL scheme.
   return title
     .replace(/%/g, '%25')
     .replace(/#/g, '%23')
     .replace(/&/g, '%26')
+    .replace(/:/g, '%3A')
     .replace(/ /g, '+')
 }
 
@@ -790,10 +794,14 @@ function getReadableTitle(state: ReceiptState): string {
   return title && title !== 'Shared receipt' ? title : ''
 }
 
-/** Hybrid: title=<readable>&d:<payload> (or just d:<payload>). */
+function isAlphanumericPayload(value: string): boolean {
+  return /^[A-Za-z0-9]+$/.test(value)
+}
+
+/** Hybrid: title=<readable>&d<payload> (or just d<payload>). Older links use d:. */
 function encodeHybridHash(state: ReceiptState): string {
   const packed = packBinaryState(state, { includeTitle: false })
-  const payload = `${DATA_PREFIX}${chooseSmallestPayload(packed)}`
+  const payload = `${DATA_MARKER}${chooseSmallestPayload(packed)}`
   const title = getReadableTitle(state)
   if (!title) {
     return payload
@@ -802,26 +810,35 @@ function encodeHybridHash(state: ReceiptState): string {
 }
 
 function parseHybridHash(raw: string): { title: string | null; payload: string } | null {
-  const dataIndex = raw.indexOf(DATA_PREFIX)
-  if (dataIndex === -1) {
-    return null
-  }
-
-  // Bare d:... (no title param) — only treat as hybrid when not old-only path;
-  // caller still tries binary then legacy deflate text.
-  if (dataIndex === 0) {
+  const oldIndex = raw.indexOf(DATA_PREFIX)
+  if (oldIndex === 0) {
     return { title: null, payload: raw.slice(DATA_PREFIX.length) }
   }
-
-  if (!raw.startsWith(TITLE_PARAM) || !raw.slice(0, dataIndex).endsWith('&')) {
-    return null
+  if (oldIndex !== -1 && raw.startsWith(TITLE_PARAM) && raw.slice(0, oldIndex).endsWith('&')) {
+    return {
+      title: decodeReadableTitle(raw.slice(TITLE_PARAM.length, oldIndex - 1)),
+      payload: raw.slice(oldIndex + DATA_PREFIX.length),
+    }
   }
 
-  const titleValue = raw.slice(TITLE_PARAM.length, dataIndex - 1)
-  return {
-    title: decodeReadableTitle(titleValue),
-    payload: raw.slice(dataIndex + DATA_PREFIX.length),
+  if (raw.startsWith(DATA_MARKER) && isAlphanumericPayload(raw.slice(DATA_MARKER.length))) {
+    return { title: null, payload: raw.slice(DATA_MARKER.length) }
   }
+
+  if (raw.startsWith(TITLE_PARAM)) {
+    const separator = raw.indexOf('&')
+    if (separator !== -1) {
+      const rest = raw.slice(separator + 1)
+      if (rest.startsWith(DATA_MARKER) && isAlphanumericPayload(rest.slice(DATA_MARKER.length))) {
+        return {
+          title: decodeReadableTitle(raw.slice(TITLE_PARAM.length, separator)),
+          payload: rest.slice(DATA_MARKER.length),
+        }
+      }
+    }
+  }
+
+  return null
 }
 
 function applyReadableTitle(state: ReceiptState | null, title: string | null): ReceiptState | null {
