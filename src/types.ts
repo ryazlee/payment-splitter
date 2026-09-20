@@ -3,7 +3,7 @@ export type ReceiptItem = {
   name: string
   price: string
   quantity: string
-  /** How many units (or share parts) each person got. */
+  /** How many units or share parts each person got. Qty 1/2/4 divide the full line by these. */
   shares: Record<string, number>
 }
 

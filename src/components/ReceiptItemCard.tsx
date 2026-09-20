@@ -3,10 +3,48 @@ import {
   formatMoney,
   getShareTotal,
   isEqualSplitItem,
+  isShareWeightedQuantity,
   parseMoneyInput,
   parseQuantity,
+  splitsFullAmountByShares,
 } from '../utils/receipt'
 import Button from './Button'
+
+function assignmentStatus({
+  equalSplit,
+  shareWeighted,
+  splitCount,
+  shareTotal,
+  equalAmount,
+  total,
+  quantity,
+}: {
+  equalSplit: boolean
+  shareWeighted: boolean
+  splitCount: number
+  shareTotal: number
+  equalAmount: number
+  total: number
+  quantity: number
+}): string {
+  if (equalSplit) {
+    return splitCount > 0
+      ? `${formatMoney(equalAmount)} each · ${splitCount} splitting`
+      : 'Unassigned'
+  }
+
+  if (shareWeighted) {
+    if (shareTotal <= 0) {
+      return 'Unassigned'
+    }
+    if (splitCount === shareTotal) {
+      return `${formatMoney(total / splitCount)} each · ${splitCount} splitting`
+    }
+    return `${splitCount} splitting`
+  }
+
+  return shareTotal > 0 ? `${shareTotal} of ${quantity}` : 'Unassigned'
+}
 
 type ReceiptItemCardProps = {
   index: number
@@ -33,6 +71,8 @@ export default function ReceiptItemCard({
   const shareTotal = getShareTotal(item.shares)
   const remaining = Math.max(quantity - shareTotal, 0)
   const equalSplit = isEqualSplitItem(item)
+  const shareWeighted = isShareWeightedQuantity(quantity)
+  const amountDivisor = splitsFullAmountByShares(item) ? shareTotal : quantity
   const splitCount = Object.values(item.shares).filter((count) => count > 0).length
   const equalAmount = equalSplit && splitCount > 0 && total > 0 ? total / splitCount : 0
   const everyoneIncluded =
@@ -109,12 +149,23 @@ export default function ReceiptItemCard({
           </div>
         ) : (
           <div className="stack stack--tight">
-            <p className="section-label">Who got what</p>
+            <div className="item-card__split-header">
+              <p className="section-label">{shareWeighted ? 'Split by shares' : 'Who got what'}</p>
+              {shareWeighted && !everyoneIncluded ? (
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  onClick={() => onSplitEqually(item.id)}
+                >
+                  Include everyone
+                </button>
+              ) : null}
+            </div>
             <div className="share-list">
               {participants.map((participant) => {
                 const count = item.shares[participant] ?? 0
-                const amount = count > 0 && quantity > 0 ? (count / quantity) * total : 0
-                const canIncrease = remaining > 0
+                const amount = count > 0 && amountDivisor > 0 ? (count / amountDivisor) * total : 0
+                const canIncrease = shareWeighted ? count < quantity : remaining > 0
 
                 if (count <= 0) {
                   return (
@@ -175,20 +226,22 @@ export default function ReceiptItemCard({
         )
       ) : (
         <p className="empty-hint">
-          {equalSplit ? 'Add people to split this equally.' : 'Add people to assign this item.'}
+          {equalSplit ? 'Add people to split this equally.' : shareWeighted ? 'Add people to split this.' : 'Add people to assign this item.'}
         </p>
       )}
 
       <div className="item-card__footer">
         <span>{formatMoney(total)}</span>
         <span>
-          {equalSplit
-            ? splitCount > 0
-              ? `${formatMoney(equalAmount)} each · ${splitCount} splitting`
-              : 'Unassigned'
-            : shareTotal > 0
-              ? `${shareTotal} of ${quantity}`
-              : 'Unassigned'}
+          {assignmentStatus({
+            equalSplit,
+            shareWeighted,
+            splitCount,
+            shareTotal,
+            equalAmount,
+            total,
+            quantity,
+          })}
         </span>
       </div>
     </article>

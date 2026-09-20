@@ -73,15 +73,29 @@ export function createItem(overrides: Partial<ReceiptItem> = {}): ReceiptItem {
     price: '',
     ...rest,
     quantity: quantityValue,
-    // Do not clamp to quantity here — qty 1 equal-split can have more
-    // share parts than quantity (e.g. 3 people each with 1 on qty 1).
+    // Do not clamp to quantity here — qty 1/2/4 can have more share parts
+    // than quantity (e.g. 3 people each with 1 on qty 2).
     shares: normalizeShares(shares),
   }
+}
+
+/** Qty of 1 → include/exclude chips; qty 2 and 4 also split the full line by share weights. */
+export function isShareWeightedQuantity(quantity: number): boolean {
+  return quantity === 2 || quantity === 4
 }
 
 /** Qty of 1 → equal-split among included people; qty > 1 → assign units. */
 export function isEqualSplitItem(item: Pick<ReceiptItem, 'quantity'>): boolean {
   return parseQuantity(item.quantity) <= 1
+}
+
+/**
+ * Full line total is divided by share parts (not leftover units).
+ * Qty 1, 2, and 4: 2–3 people can share the item, and it does not have to be 1:1.
+ */
+export function splitsFullAmountByShares(item: Pick<ReceiptItem, 'quantity'>): boolean {
+  const quantity = parseQuantity(item.quantity)
+  return quantity <= 1 || isShareWeightedQuantity(quantity)
 }
 
 export function equalSharesForParticipants(participants: string[]): Record<string, number> {
@@ -91,7 +105,7 @@ export function equalSharesForParticipants(participants: string[]): Record<strin
 /**
  * When qty flips between 1 and >1, convert shares to the matching mode.
  * Dropping to 1 equal-splits among people who already had a share (or everyone).
- * Raising above 1 clamps shares back to unit counts.
+ * Qty 2 and 4 keep extra people so 2–3 can share the line. Other qty > 1 clamps to units.
  */
 export function sharesForQuantityChange(
   item: ReceiptItem,
@@ -104,7 +118,7 @@ export function sharesForQuantityChange(
   const nowEqual = nextQuantity <= 1
 
   if (wasEqual === nowEqual) {
-    return nowEqual
+    return nowEqual || isShareWeightedQuantity(nextQuantity)
       ? item.shares
       : clampSharesToQuantity(item.shares, nextQuantity)
   }
@@ -115,6 +129,10 @@ export function sharesForQuantityChange(
       .map(([name]) => name)
       .filter((name) => participants.includes(name))
     return equalSharesForParticipants(included)
+  }
+
+  if (isShareWeightedQuantity(nextQuantity)) {
+    return item.shares
   }
 
   return clampSharesToQuantity(item.shares, nextQuantity)

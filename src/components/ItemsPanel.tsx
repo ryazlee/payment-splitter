@@ -25,7 +25,7 @@ export default function ItemsPanel({
   return (
     <SectionCard
       title="Items"
-      subtitle="Qty 1 splits equally. Qty 2+ assigns how many each person got."
+      subtitle="Qty 1 splits equally. Qty 2 or 4 splits among whoever you include — not 1:1. Other qty assigns units."
     >
       <div className="stack">
         <div className="stack stack--tight">

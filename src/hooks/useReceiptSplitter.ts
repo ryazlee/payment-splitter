@@ -7,6 +7,7 @@ import {
   equalSharesForParticipants,
   getShareTotal,
   isEqualSplitItem,
+  isShareWeightedQuantity,
   normalizeCurrencyInput,
   normalizeQuantityInput,
   parseQuantity,
@@ -203,7 +204,9 @@ export function useReceiptSplitter() {
 
         const quantity = parseQuantity(item.quantity)
         const othersTotal = getShareTotal(item.shares) - (item.shares[participant] ?? 0)
-        const maxForPerson = Math.max(0, quantity - othersTotal)
+        const maxForPerson = isShareWeightedQuantity(quantity)
+          ? quantity
+          : Math.max(0, quantity - othersTotal)
         const nextCount = Math.min(Math.max(Math.floor(count), 0), maxForPerson)
 
         if (nextCount <= 0) {
