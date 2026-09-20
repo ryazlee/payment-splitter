@@ -23,10 +23,7 @@ export default function ItemsPanel({
   onSplitEqually,
 }: ItemsPanelProps) {
   return (
-    <SectionCard
-      title="Items"
-      subtitle="Qty 1 splits equally. Qty 2 or 4 splits among whoever you include — not 1:1. Other qty assigns units."
-    >
+    <SectionCard title="Items">
       <div className="stack">
         <div className="stack stack--tight">
           {items.map((item, index) => (

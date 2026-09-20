@@ -3,7 +3,6 @@ import { createSummaryUrl } from './hashState'
 import {
   formatMoney,
   getShareTotal,
-  splitsFullAmountByShares,
   parseMoneyInput,
   parseQuantity,
 } from './receipt'
@@ -53,8 +52,7 @@ export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
       }
     }
     const shareTotal = getShareTotal(shares)
-    // Qty 1/2/4: divide the full line by share parts. Other qty: divide by unit quantity.
-    const divisor = splitsFullAmountByShares(item) ? shareTotal : quantity
+    const divisor = shareTotal
     const amountByParticipant: Record<string, number> = {}
     for (const [name, count] of Object.entries(shares)) {
       amountByParticipant[name] = amountForShare(total, count, divisor)
@@ -105,15 +103,7 @@ export function computeReceiptSummary(state: ReceiptState): ReceiptSummary {
     if (item.total <= 0) {
       return sum
     }
-    if (splitsFullAmountByShares(item)) {
-      return item.shareTotal > 0 ? sum : sum + item.total
-    }
-    const quantity = parseQuantity(item.quantity)
-    if (quantity <= 0) {
-      return sum
-    }
-    const unassignedUnits = Math.max(quantity - item.shareTotal, 0)
-    return sum + (unassignedUnits / quantity) * item.total
+    return item.shareTotal > 0 ? sum : sum + item.total
   }, 0)
   const receiptTotal = subtotal + taxAmount + tipAmount + feesAmount - discountAmount
   const remainingTotal = Math.max(

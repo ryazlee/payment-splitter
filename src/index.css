@@ -390,6 +390,44 @@ a {
   font-weight: 600;
 }
 
+.chip--share {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.15rem 0.2rem 0.15rem 0.45rem;
+}
+
+.chip__name {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  padding: 0.15rem 0.3rem;
+}
+
+.chip__step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-contrast) 18%, transparent);
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.chip__step:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-contrast) 28%, transparent);
+}
+
+.chip__step:disabled {
+  opacity: 0.35;
+}
+
 /* —— Fields —— */
 .field {
   display: block;

@@ -3,47 +3,83 @@ import {
   formatMoney,
   getShareTotal,
   isEqualSplitItem,
-  isShareWeightedQuantity,
   parseMoneyInput,
   parseQuantity,
-  splitsFullAmountByShares,
 } from '../utils/receipt'
 import Button from './Button'
 
-function assignmentStatus({
-  equalSplit,
-  shareWeighted,
-  splitCount,
-  shareTotal,
-  equalAmount,
-  total,
-  quantity,
-}: {
-  equalSplit: boolean
-  shareWeighted: boolean
-  splitCount: number
-  shareTotal: number
-  equalAmount: number
-  total: number
+function assignmentStatus(
+  splitCount: number,
+  shareTotal: number,
+  total: number,
+): string {
+  if (splitCount <= 0) {
+    return 'Unassigned'
+  }
+
+  if (total > 0 && splitCount === shareTotal) {
+    return `${formatMoney(total / splitCount)} each · ${splitCount} splitting`
+  }
+
+  return `${splitCount} splitting`
+}
+
+type PersonChipProps = {
+  itemId: string
+  participant: string
+  count: number
   quantity: number
-}): string {
-  if (equalSplit) {
-    return splitCount > 0
-      ? `${formatMoney(equalAmount)} each · ${splitCount} splitting`
-      : 'Unassigned'
+  onSetShare: (itemId: string, participant: string, count: number) => void
+}
+
+function PersonChip({ itemId, participant, count, quantity, onSetShare }: PersonChipProps) {
+  const included = count > 0
+  const canWeight = quantity > 1 && included
+
+  if (!canWeight) {
+    return (
+      <button
+        type="button"
+        className={included ? 'chip chip--active' : 'chip'}
+        onClick={() => onSetShare(itemId, participant, included ? 0 : 1)}
+      >
+        {participant}
+      </button>
+    )
   }
 
-  if (shareWeighted) {
-    if (shareTotal <= 0) {
-      return 'Unassigned'
-    }
-    if (splitCount === shareTotal) {
-      return `${formatMoney(total / splitCount)} each · ${splitCount} splitting`
-    }
-    return `${splitCount} splitting`
-  }
-
-  return shareTotal > 0 ? `${shareTotal} of ${quantity}` : 'Unassigned'
+  return (
+    <div className="chip chip--active chip--share">
+      {count > 1 ? (
+        <button
+          type="button"
+          className="chip__step"
+          onClick={() => onSetShare(itemId, participant, count - 1)}
+          aria-label={`Fewer for ${participant}`}
+        >
+          −
+        </button>
+      ) : null}
+      <button
+        type="button"
+        className="chip__name"
+        onClick={() => onSetShare(itemId, participant, 0)}
+        title={`Remove ${participant}`}
+      >
+        {participant}
+        {count > 1 ? ` · ${count}` : ''}
+      </button>
+      <button
+        type="button"
+        className="chip__step"
+        onClick={() => onSetShare(itemId, participant, count + 1)}
+        disabled={count >= quantity}
+        aria-label={`More for ${participant}`}
+      >
+        +
+      </button>
+    </div>
+  )
 }
 
 type ReceiptItemCardProps = {
@@ -69,14 +105,21 @@ export default function ReceiptItemCard({
   const unitPrice = parseMoneyInput(item.price)
   const total = quantity * unitPrice
   const shareTotal = getShareTotal(item.shares)
-  const remaining = Math.max(quantity - shareTotal, 0)
   const equalSplit = isEqualSplitItem(item)
-  const shareWeighted = isShareWeightedQuantity(quantity)
-  const amountDivisor = splitsFullAmountByShares(item) ? shareTotal : quantity
   const splitCount = Object.values(item.shares).filter((count) => count > 0).length
-  const equalAmount = equalSplit && splitCount > 0 && total > 0 ? total / splitCount : 0
   const everyoneIncluded =
     participants.length > 0 && participants.every((name) => (item.shares[name] ?? 0) > 0)
+  const unevenAmounts =
+    !equalSplit && splitCount > 0 && shareTotal !== splitCount
+      ? participants
+          .filter((name) => (item.shares[name] ?? 0) > 0)
+          .map((name) => {
+            const count = item.shares[name] ?? 0
+            const amount = shareTotal > 0 ? (count / shareTotal) * total : 0
+            return `${name} ${formatMoney(amount)}`
+          })
+          .join(' · ')
+      : ''
 
   return (
     <article className="inset-block item-card">
@@ -117,132 +160,42 @@ export default function ReceiptItemCard({
       </div>
 
       {participants.length > 0 ? (
-        equalSplit ? (
-          <div className="stack stack--tight">
-            <div className="item-card__split-header">
-              <p className="section-label">Split equally</p>
-              {!everyoneIncluded ? (
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--sm"
-                  onClick={() => onSplitEqually(item.id)}
-                >
-                  Include everyone
-                </button>
-              ) : null}
-            </div>
-            <div className="chip-row">
-              {participants.map((participant) => {
-                const included = (item.shares[participant] ?? 0) > 0
-                return (
-                  <button
-                    key={`${item.id}-${participant}`}
-                    type="button"
-                    className={included ? 'chip chip--active' : 'chip'}
-                    onClick={() => onSetShare(item.id, participant, included ? 0 : 1)}
-                  >
-                    {participant}
-                  </button>
-                )
-              })}
-            </div>
+        <div className="stack stack--tight">
+          <div className="item-card__split-header">
+            <p className="section-label">Split with</p>
+            {!everyoneIncluded ? (
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                onClick={() => onSplitEqually(item.id)}
+              >
+                Everyone
+              </button>
+            ) : null}
           </div>
-        ) : (
-          <div className="stack stack--tight">
-            <div className="item-card__split-header">
-              <p className="section-label">{shareWeighted ? 'Split by shares' : 'Who got what'}</p>
-              {shareWeighted && !everyoneIncluded ? (
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--sm"
-                  onClick={() => onSplitEqually(item.id)}
-                >
-                  Include everyone
-                </button>
-              ) : null}
-            </div>
-            <div className="share-list">
-              {participants.map((participant) => {
-                const count = item.shares[participant] ?? 0
-                const amount = count > 0 && amountDivisor > 0 ? (count / amountDivisor) * total : 0
-                const canIncrease = shareWeighted ? count < quantity : remaining > 0
-
-                if (count <= 0) {
-                  return (
-                    <button
-                      key={`${item.id}-${participant}`}
-                      type="button"
-                      onClick={() => onSetShare(item.id, participant, 1)}
-                      disabled={!canIncrease}
-                      className="share-row"
-                    >
-                      <span>{participant}</span>
-                      <span className="meta meta--muted meta--sm">
-                        {canIncrease ? 'Add' : 'Full'}
-                      </span>
-                    </button>
-                  )
-                }
-
-                return (
-                  <div
-                    key={`${item.id}-${participant}`}
-                    className="share-row share-row--active"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onSetShare(item.id, participant, 0)}
-                      className="share-row__name"
-                      title={`Remove ${participant}`}
-                    >
-                      {participant}
-                    </button>
-                    <div className="share-row__stepper">
-                      <button
-                        type="button"
-                        onClick={() => onSetShare(item.id, participant, count - 1)}
-                        className="share-row__step"
-                        aria-label={`Fewer for ${participant}`}
-                      >
-                        −
-                      </button>
-                      <span className="share-row__count">{count}</span>
-                      <button
-                        type="button"
-                        onClick={() => onSetShare(item.id, participant, count + 1)}
-                        disabled={!canIncrease}
-                        className="share-row__step"
-                        aria-label={`More for ${participant}`}
-                      >
-                        +
-                      </button>
-                    </div>
-                    <span className="share-row__amount">{formatMoney(amount)}</span>
-                  </div>
-                )
-              })}
-            </div>
+          <div className="chip-row">
+            {participants.map((participant) => (
+              <PersonChip
+                key={`${item.id}-${participant}`}
+                itemId={item.id}
+                participant={participant}
+                count={item.shares[participant] ?? 0}
+                quantity={quantity}
+                onSetShare={onSetShare}
+              />
+            ))}
           </div>
-        )
+          {unevenAmounts ? (
+            <p className="meta meta--muted meta--sm">{unevenAmounts}</p>
+          ) : null}
+        </div>
       ) : (
-        <p className="empty-hint">
-          {equalSplit ? 'Add people to split this equally.' : shareWeighted ? 'Add people to split this.' : 'Add people to assign this item.'}
-        </p>
+        <p className="empty-hint">Add people to split this.</p>
       )}
 
       <div className="item-card__footer">
         <span>{formatMoney(total)}</span>
-        <span>
-          {assignmentStatus({
-            equalSplit,
-            shareWeighted,
-            splitCount,
-            shareTotal,
-            equalAmount,
-            total,
-            quantity,
-          })}
-        </span>
+        <span>{assignmentStatus(splitCount, shareTotal, total)}</span>
       </div>
     </article>
   )

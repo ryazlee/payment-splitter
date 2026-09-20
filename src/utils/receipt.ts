@@ -41,23 +41,18 @@ export function getShareTotal(shares: Record<string, number>): number {
   return Object.values(shares).reduce((sum, count) => sum + count, 0)
 }
 
-/** Keep share counts from exceeding the item quantity (drops overflow from later entries). */
-export function clampSharesToQuantity(
+/** Cap each person's share count at the item quantity without dropping extra people. */
+export function capShareCounts(
   shares: Record<string, number>,
   quantity: number,
 ): Record<string, number> {
   const maxUnits = Math.max(1, Math.floor(quantity) || 1)
-  let remaining = maxUnits
   const next: Record<string, number> = {}
 
   for (const [name, count] of Object.entries(shares)) {
-    if (remaining <= 0) {
-      break
-    }
-    const capped = Math.min(Math.max(Math.floor(count), 0), remaining)
+    const capped = Math.min(Math.max(Math.floor(count), 0), maxUnits)
     if (capped > 0) {
       next[name] = capped
-      remaining -= capped
     }
   }
 
@@ -73,29 +68,14 @@ export function createItem(overrides: Partial<ReceiptItem> = {}): ReceiptItem {
     price: '',
     ...rest,
     quantity: quantityValue,
-    // Do not clamp to quantity here — qty 1/2/4 can have more share parts
-    // than quantity (e.g. 3 people each with 1 on qty 2).
+    // Extra people are allowed — 4 people can split qty 3, etc.
     shares: normalizeShares(shares),
   }
 }
 
-/** Qty of 1 → include/exclude chips; qty 2 and 4 also split the full line by share weights. */
-export function isShareWeightedQuantity(quantity: number): boolean {
-  return quantity === 2 || quantity === 4
-}
-
-/** Qty of 1 → equal-split among included people; qty > 1 → assign units. */
+/** Qty of 1 uses include/exclude chips; qty > 1 can also weight shares. */
 export function isEqualSplitItem(item: Pick<ReceiptItem, 'quantity'>): boolean {
   return parseQuantity(item.quantity) <= 1
-}
-
-/**
- * Full line total is divided by share parts (not leftover units).
- * Qty 1, 2, and 4: 2–3 people can share the item, and it does not have to be 1:1.
- */
-export function splitsFullAmountByShares(item: Pick<ReceiptItem, 'quantity'>): boolean {
-  const quantity = parseQuantity(item.quantity)
-  return quantity <= 1 || isShareWeightedQuantity(quantity)
 }
 
 export function equalSharesForParticipants(participants: string[]): Record<string, number> {
@@ -103,27 +83,17 @@ export function equalSharesForParticipants(participants: string[]): Record<strin
 }
 
 /**
- * When qty flips between 1 and >1, convert shares to the matching mode.
- * Dropping to 1 equal-splits among people who already had a share (or everyone).
- * Qty 2 and 4 keep extra people so 2–3 can share the line. Other qty > 1 clamps to units.
+ * When qty drops to 1, equal-split among people who already had a share.
+ * Otherwise keep extra people and cap each person's count at the new qty.
  */
 export function sharesForQuantityChange(
   item: ReceiptItem,
   nextQuantityValue: string,
   participants: string[],
 ): Record<string, number> {
-  const previousQuantity = parseQuantity(item.quantity)
   const nextQuantity = parseQuantity(nextQuantityValue)
-  const wasEqual = previousQuantity <= 1
-  const nowEqual = nextQuantity <= 1
 
-  if (wasEqual === nowEqual) {
-    return nowEqual || isShareWeightedQuantity(nextQuantity)
-      ? item.shares
-      : clampSharesToQuantity(item.shares, nextQuantity)
-  }
-
-  if (nowEqual) {
+  if (nextQuantity <= 1) {
     const included = Object.entries(item.shares)
       .filter(([, count]) => count > 0)
       .map(([name]) => name)
@@ -131,11 +101,7 @@ export function sharesForQuantityChange(
     return equalSharesForParticipants(included)
   }
 
-  if (isShareWeightedQuantity(nextQuantity)) {
-    return item.shares
-  }
-
-  return clampSharesToQuantity(item.shares, nextQuantity)
+  return capShareCounts(item.shares, nextQuantity)
 }
 
 export function createEmptyState(): ReceiptState {
